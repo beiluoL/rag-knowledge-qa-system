@@ -1,0 +1,72 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: ragkb
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ragkb
+    username: ragkb
+    password: ragkb123
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: 20
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+
+  ai:
+    ollama:
+      base-url: http://localhost:11434
+      chat:
+        model: qwen2.5-coder:7b
+        options:
+          temperature: 0.3
+          num-predict: 1024
+      embedding:
+        model: nomic-embed-text:latest
+
+# ============================================
+# 应用自定义配置
+# ============================================
+app:
+  jwt:
+    secret: RAGkbSecretKey1234567890_RAGkbSecretKey1234567890
+    access-token-expiration: 1800000     # 30 分钟
+    refresh-token-expiration: 604800000  # 7 天
+
+  rag:
+    chunk-size: 500
+    chunk-overlap: 100
+    top-k: 5
+    similarity-threshold: 0.5
+    max-history-rounds: 3
+
+  storage:
+    upload-dir: ./data/documents
+
+  admin:
+    username: admin
+    password: 123456
