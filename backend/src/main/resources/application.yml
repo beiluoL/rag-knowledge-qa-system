@@ -5,16 +5,18 @@ spring:
   application:
     name: ragkb
 
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.autoconfigure.openai.OpenAiAutoConfiguration
+
+  # 导入本地私密配置（不提交到 Git）
+  config:
+    import: optional:classpath:application-secrets.yml
+
   datasource:
     url: jdbc:postgresql://localhost:5432/ragkb
-    username: ragkb
-    password: ragkb123
-    driver-class-name: org.postgresql.Driver
-    hikari:
-      maximum-pool-size: 20
-      minimum-idle: 5
-      idle-timeout: 300000
-      connection-timeout: 20000
+    username: ${DB_USERNAME:ragkb}
+    password: ${DB_PASSWORD:}
 
   jpa:
     hibernate:
@@ -52,10 +54,19 @@ spring:
 # 应用自定义配置
 # ============================================
 app:
+  # AI 模式：offline（Ollama 本地）/ online（阿里云百炼）
+  ai-mode: offline
+
+  # 阿里云百炼 DashScope 在线 API 配置
+  dashscope:
+    api-key: ${DASHSCOPE_API_KEY:}
+    chat-model: qwen-plus
+    embedding-model: text-embedding-v2
+
   jwt:
-    secret: RAGkbSecretKey1234567890_RAGkbSecretKey1234567890
-    access-token-expiration: 1800000     # 30 分钟
-    refresh-token-expiration: 604800000  # 7 天
+    secret: ${JWT_SECRET:}
+    access-token-expiration: 1800000
+    refresh-token-expiration: 604800000
 
   rag:
     chunk-size: 500
@@ -69,4 +80,4 @@ app:
 
   admin:
     username: admin
-    password: 123456
+    password: ${ADMIN_PASSWORD:123456}

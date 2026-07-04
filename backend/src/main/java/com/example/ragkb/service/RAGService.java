@@ -6,31 +6,36 @@ import com.example.ragkb.repository.ChunkEmbeddingRepository;
 import com.example.ragkb.repository.MessageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.messages.SystemMessage;
-import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.chat.prompt.Prompt;
-import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * RAG 核心编排服务
  * 负责：问题向量化 → 语义搜索 → Prompt 拼接 → LLM 生成
+ * 根据 ai-mode 自动切换离线/在线模型
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class RAGService {
 
     private final EmbeddingService embeddingService;
     private final ChunkEmbeddingRepository embeddingRepository;
-    private final OllamaChatModel chatModel;
+    private final DynamicAiProvider aiProvider;
     private final MessageRepository messageRepository;
+
+    public RAGService(EmbeddingService embeddingService,
+                       ChunkEmbeddingRepository embeddingRepository,
+                       DynamicAiProvider aiProvider,
+                       MessageRepository messageRepository) {
+        this.embeddingService = embeddingService;
+        this.embeddingRepository = embeddingRepository;
+        this.aiProvider = aiProvider;
+        this.messageRepository = messageRepository;
+    }
 
     @Value("${app.rag.top-k}")
     private int topK;
@@ -86,31 +91,16 @@ public class RAGService {
         String history = buildHistory(conversationId);
 
         // 5. 组装消息
-        SystemMessage systemMsg = new SystemMessage(SYSTEM_PROMPT);
         String userContent = contextBuilder.toString() + "\n" + history + "\n" + "【用户问题】\n" + question;
-        UserMessage userMsg = new UserMessage(userContent);
 
-        Prompt prompt = new Prompt(List.of(systemMsg, userMsg));
-
-        return new RAGContext(prompt, references);
+        return new RAGContext(SYSTEM_PROMPT, userContent, references);
     }
 
     /**
-     * 调用 LLM 生成回答（非流式）
+     * 调用 AI 生成回答（离线走 Ollama，在线走 DashScope）
      */
-    public String generateAnswer(Prompt prompt) {
-        return chatModel.call(prompt).getResult().getOutput().getText();
-    }
-
-    /**
-     * 调用 LLM 流式生成回答
-     */
-    public reactor.core.publisher.Flux<String> generateAnswerStream(Prompt prompt) {
-        return chatModel.stream(prompt)
-                .map(chunk -> {
-                    String content = chunk.getResult().getOutput().getText();
-                    return content != null ? content : "";
-                });
+    public String generateAnswer(String systemPrompt, String userMessage) {
+        return aiProvider.chat(systemPrompt, userMessage);
     }
 
     /**
@@ -148,7 +138,8 @@ public class RAGService {
     }
 
     /**
-     * RAG 上下文（Prompt + 引用）
+     * RAG 上下文（系统提示 + 用户消息 + 引用）
      */
-    public record RAGContext(Prompt prompt, List<ReferenceDTO> references) {}
+    public record RAGContext(String systemPrompt, String userMessage,
+                              List<ReferenceDTO> references) {}
 }

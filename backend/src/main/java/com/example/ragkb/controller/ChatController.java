@@ -81,7 +81,8 @@ public class ChatController {
             }
 
             // 7. 生成回答
-            String answer = ragService.generateAnswer(ragContext.prompt());
+            String answer = ragService.generateAnswer(
+                    ragContext.systemPrompt(), ragContext.userMessage());
             if (answer != null && !answer.isBlank()) {
                 for (int i = 0; i < answer.length(); i++) {
                     String ch = answer.substring(i, i + 1);

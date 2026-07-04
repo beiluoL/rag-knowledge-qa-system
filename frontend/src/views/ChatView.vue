@@ -6,6 +6,12 @@
         <h3>💬 会话列表</h3>
         <el-button type="primary" size="small" @click="newChat" :icon="Plus">新建</el-button>
       </div>
+      <div class="mode-indicator" :class="aiMode" @click="handleToggleMode" title="点击切换在线/离线模式">
+        <span v-if="aiMode === 'online'" class="mode-dot online"></span>
+        <span v-else class="mode-dot offline"></span>
+        <span class="mode-text">{{ aiMode === 'online' ? '在线 · 阿里云百炼' : '离线 · Ollama 本地' }}</span>
+        <el-icon class="mode-switch-icon"><Switch /></el-icon>
+      </div>
       <div class="conversation-list">
         <div
           v-for="conv in conversations"
@@ -129,6 +135,7 @@ import { Plus, Promotion } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { getConversations, getConversationMessages, sendMessage as sendChatMessage,
   renameConversation, deleteConversation, type Conversation, type Message, type Reference } from '@/api/chat'
+import { getAiMode, switchAiMode } from '@/api/aimode'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
 
@@ -144,6 +151,7 @@ const currentConversationId = ref<number | null>(null)
 const inputQuestion = ref('')
 const isStreaming = ref(false)
 const streamingContent = ref('')
+const aiMode = ref('offline')
 
 // 渲染 Markdown
 marked.setOptions({
@@ -192,6 +200,18 @@ async function selectConversation(id: number) {
     scrollToBottom()
   } catch (e) {
     console.error('加载消息失败', e)
+  }
+}
+
+// 切换 AI 模式
+async function handleToggleMode() {
+  const targetMode = aiMode.value === 'online' ? 'offline' : 'online'
+  try {
+    const { data } = await switchAiMode(targetMode)
+    aiMode.value = data.mode
+    ElMessage.success(data.message || `已切换为 ${data.mode} 模式`)
+  } catch (e: any) {
+    ElMessage.error('切换失败: ' + (e.response?.data?.message || e.message))
   }
 }
 
@@ -348,6 +368,11 @@ function handleUserAction(cmd: string) {
 }
 
 onMounted(async () => {
+  // 获取 AI 模式
+  try {
+    const { data } = await getAiMode()
+    aiMode.value = data.mode
+  } catch { /* ignore */ }
   await loadConversations()
   const convId = route.params.conversationId
   if (convId) {
@@ -378,6 +403,28 @@ onMounted(async () => {
   border-bottom: 1px solid #ebeef5;
 }
 .sidebar-header h3 { font-size: 16px; font-weight: 600; }
+.mode-indicator {
+  padding: 8px 16px;
+  font-size: 12px;
+  color: #606266;
+  background: #f5f7fa;
+  border-bottom: 1px solid #ebeef5;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mode-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.mode-dot.online { background: #67c23a; box-shadow: 0 0 4px #67c23a; }
+.mode-dot.offline { background: #409eff; box-shadow: 0 0 4px #409eff; }
+.mode-indicator { cursor: pointer; user-select: none; transition: background 0.2s; }
+.mode-indicator:hover { background: #e8eaed; }
+.mode-text { flex: 1; }
+.mode-switch-icon { color: #909399; font-size: 14px; }
 .conversation-list { flex: 1; overflow-y: auto; padding: 8px; }
 .conv-item {
   padding: 10px 12px;

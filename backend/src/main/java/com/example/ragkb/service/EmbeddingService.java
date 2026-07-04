@@ -1,8 +1,6 @@
 package com.example.ragkb.service;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.ollama.OllamaEmbeddingModel;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -10,30 +8,39 @@ import java.util.List;
 
 /**
  * Embedding 向量化服务
- * 使用 Ollama bge-m3 模型将文本转换为向量
+ * 根据 ai-mode 自动选择离线 Ollama 或在线 DashScope
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class EmbeddingService {
 
-    private final OllamaEmbeddingModel embeddingModel;
+    private final DynamicAiProvider aiProvider;
+
+    public EmbeddingService(DynamicAiProvider aiProvider) {
+        this.aiProvider = aiProvider;
+    }
+
+    public String getMode() {
+        return aiProvider.getMode();
+    }
+
+    public int getDimension() {
+        return aiProvider.getEmbeddingDimension();
+    }
 
     /**
      * 单条文本向量化
-     * 返回向量字符串，格式: [0.1,0.2,...]
      */
     public String embed(String text) {
-        float[] vector = embeddingModel.embed(text);
+        float[] vector = aiProvider.embed(text);
         return vectorToString(vector);
     }
 
     /**
      * 批量文本向量化
-     * 返回向量字符串列表
      */
     public List<String> embedBatch(List<String> texts) {
-        List<float[]> vectors = embeddingModel.embed(texts);
+        List<float[]> vectors = aiProvider.embedBatch(texts);
         List<String> results = new ArrayList<>();
         for (float[] vector : vectors) {
             results.add(vectorToString(vector));
@@ -42,7 +49,7 @@ public class EmbeddingService {
     }
 
     /**
-     * 批量文本向量化（按批次处理，避免单次请求过大）
+     * 批量文本向量化（按批次处理）
      */
     public List<String> embedBatchInChunks(List<String> texts, int batchSize) {
         List<String> allVectors = new ArrayList<>();
@@ -51,7 +58,7 @@ public class EmbeddingService {
             List<String> batch = texts.subList(i, end);
             List<String> batchVectors = embedBatch(batch);
             allVectors.addAll(batchVectors);
-            log.info("向量化进度: {}/{}", end, texts.size());
+            log.info("向量化进度 [{},{}]: {}/{}", aiProvider.getMode(), aiProvider.getEmbeddingDimension(), end, texts.size());
         }
         return allVectors;
     }

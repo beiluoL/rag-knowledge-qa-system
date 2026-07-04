@@ -42,6 +42,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/knowledge/**").hasRole("ADMIN")
                 // 问答和会话 - 需要登录
                 .requestMatchers("/api/chat/**").authenticated()
+                // AI 模式查询 - 需要登录
+                .requestMatchers("/api/ai-mode/**").authenticated()
                 // 用户接口 - 需要登录
                 .requestMatchers("/api/user/**").authenticated()
                 // 其余请求需要认证

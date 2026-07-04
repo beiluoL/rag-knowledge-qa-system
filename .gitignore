@@ -22,5 +22,9 @@ data/documents/
 .env
 .env.local
 
+# 私密配置（API Key、密码等）
+application-secrets.yml
+**/application-secrets.yml
+
 # Logs
 *.log
