@@ -128,7 +128,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Promotion } from '@element-plus/icons-vue'
@@ -153,19 +153,22 @@ const isStreaming = ref(false)
 const streamingContent = ref('')
 const aiMode = ref('offline')
 
-// 渲染 Markdown
-marked.setOptions({
-  highlight: function(code: string, lang: string) {
-    if (lang && hljs.getLanguage(lang)) {
-      return hljs.highlight(code, { language: lang }).value
-    }
-    return hljs.highlightAuto(code).value
+// Markdown 代码块高亮渲染器
+const renderer = new marked.Renderer()
+renderer.code = function({ text, lang }: { text: string; lang?: string }) {
+  if (lang && hljs.getLanguage(lang)) {
+    const highlighted = hljs.highlight(text, { language: lang }).value
+    return `<pre><code class="hljs language-${lang}">${highlighted}</code></pre>`
   }
-})
+  const highlighted = hljs.highlightAuto(text).value
+  return `<pre><code class="hljs">${highlighted}</code></pre>`
+}
+
+marked.setOptions({ renderer })
 
 function renderMarkdown(text: string) {
   if (!text) return ''
-  return marked.parse(text)
+  return marked.parse(text) as string
 }
 
 function formatDate(dateStr: string) {

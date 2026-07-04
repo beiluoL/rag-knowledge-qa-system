@@ -1,0 +1,104 @@
+# ============================================
+# Docker Compose — RAG 知识库问答系统
+# 使用: docker compose up -d
+# ============================================
+
+services:
+  # ─── PostgreSQL 17 + pgvector ───
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: ragkb-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-ragkb}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-ragkb123}
+      POSTGRES_DB: ${DB_NAME:-ragkb}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-ragkb} -d ${DB_NAME:-ragkb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ragkb-network
+
+  # ─── Spring Boot 后端 ───
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ragkb-backend
+    restart: unless-stopped
+    environment:
+      # 数据库连接（postgres = Docker 服务名）
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-ragkb}
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-ragkb}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-ragkb123}
+      # Ollama（宿主机地址）
+      SPRING_AI_OLLAMA_BASE_URL: http://host.docker.internal:11434
+      # JWT 密钥
+      APP_JWT_SECRET: ${JWT_SECRET:-RAGkbDockerSecretKey1234567890_DockerKey}
+      # 管理员密码
+      APP_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-123456}
+      # 在线 API Key（可选，需与 application.yml 中占位符名一致）
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      # 文件上传路径
+      APP_STORAGE_UPLOAD_DIR: /app/data/documents
+      # JVM 参数
+      JAVA_OPTS: "-Xmx4g -Xms512m"
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    volumes:
+      - uploads:/app/data/documents
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ragkb-network
+
+  # ─── Nginx + Vue 前端 ───
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ragkb-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      - backend
+    networks:
+      - ragkb-network
+
+  # ─── 预留：Ollama（未来扩展，通过 profile 启用）───
+  # 使用: docker compose --profile with-ollama up -d
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ragkb-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    profiles:
+      - with-ollama
+    networks:
+      - ragkb-network
+
+# ─── 数据卷（数据持久化）───
+volumes:
+  pgdata:
+    name: ragkb-pgdata
+  uploads:
+    name: ragkb-uploads
+  ollama-data:
+    name: ragkb-ollama-data
+
+# ─── Docker 内部网络 ───
+networks:
+  ragkb-network:
+    name: ragkb-network
+    driver: bridge

@@ -72,6 +72,31 @@ Spring Boot 3 后端 :8080
 
 ## 快速开始
 
+### 🐳 Docker 一键部署（推荐）
+
+```bash
+# 前提：安装 Docker Desktop、Ollama 本地已运行并下载模型
+
+# 1. 进入项目目录
+cd rag-knowledge-qa-system
+
+# 2. （可选）配置环境变量
+cp .env.example .env
+
+# 3. 一键启动
+docker compose up -d
+
+# 4. 浏览器访问
+open http://localhost:5173
+
+# 5. 停止
+docker compose down
+```
+
+> Docker 会启动 PostgreSQL + 后端 + 前端，Ollama 继续在本地运行。数据通过 volume 持久化，重启不会丢失。
+
+### 手动安装（开发调试用）
+
 ### 环境要求
 - Java 17+
 - Maven 3.8+
@@ -132,7 +157,10 @@ open http://localhost:5173
 
 ```
 rag-knowledge-qa-system/
+├── docker-compose.yml                    # Docker 一键部署编排
+├── .env.example                          # Docker 环境变量模板
 ├── backend/                              # Spring Boot 3 后端
+│   ├── Dockerfile                        # 后端容器镜像
 │   ├── pom.xml                           # Maven 依赖配置
 │   └── src/main/
 │       ├── java/com/example/ragkb/
@@ -182,6 +210,8 @@ rag-knowledge-qa-system/
 │               ├── V1__init_schema.sql       # 基础表结构
 │               └── V2__online_embedding.sql   # 在线模式向量表
 ├── frontend/                             # Vue 3 前端
+│   ├── Dockerfile                        # 前端容器镜像
+│   ├── nginx.conf                        # Nginx 反向代理配置
 │   └── src/
 │       ├── api/                          # Axios 封装 + API 模块
 │       │   ├── auth.ts                   # 认证 API

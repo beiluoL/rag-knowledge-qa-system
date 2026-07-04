@@ -1,10 +1,13 @@
 import axios from 'axios'
-import type { AxiosInstance, AxiosRequestConfig } from 'axios'
+import type { AxiosInstance } from 'axios'
 import { ElMessage } from 'element-plus'
 import router from '@/router'
 
+// API 基础路径：Docker 模式使用相对路径（Nginx 反向代理），本地开发使用绝对路径
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
+
 const service: AxiosInstance = axios.create({
-  baseURL: 'http://localhost:8080/api',
+  baseURL: API_BASE_URL,
   timeout: 30000
 })
 
@@ -55,7 +58,7 @@ service.interceptors.response.use(
       const refreshToken = localStorage.getItem('refreshToken')
       if (refreshToken) {
         try {
-          const { data } = await axios.post('http://localhost:8080/api/auth/refresh', { refreshToken })
+          const { data } = await axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken })
           localStorage.setItem('accessToken', data.accessToken)
           localStorage.setItem('refreshToken', data.refreshToken)
           isRefreshing = false
