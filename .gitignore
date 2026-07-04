@@ -26,5 +26,8 @@ data/documents/
 application-secrets.yml
 **/application-secrets.yml
 
+# Claude Code
+.claude/
+
 # Logs
 *.log
