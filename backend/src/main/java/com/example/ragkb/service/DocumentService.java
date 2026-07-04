@@ -271,4 +271,75 @@ public class DocumentService {
     private boolean isSupportedType(String fileType) {
         return List.of("pdf", "txt", "md", "docx", "xlsx", "doc", "xls", "csv", "html", "xml").contains(fileType);
     }
+
+    /**
+     * URL 导入：抓取网页内容，保存为文档
+     * @param url 网页地址
+     * @param mode "text" 抓取纯文本 | "pdf" 抓取内容另存为文档
+     */
+    @Transactional
+    public Document importFromUrl(String url, String mode, Long userId) {
+        try {
+            // 使用 Jsoup 抓取网页
+            org.jsoup.Connection conn = org.jsoup.Jsoup.connect(url)
+                    .userAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36")
+                    .timeout(15000);
+            org.jsoup.nodes.Document htmlDoc = conn.get();
+
+            String title = htmlDoc.title();
+            if (title == null || title.isBlank()) {
+                title = url.replaceAll("https?://", "").replaceAll("[^a-zA-Z0-9\\u4e00-\\u9fa5]", "-");
+                if (title.length() > 100) title = title.substring(0, 100);
+            }
+
+            String content;
+            if ("text".equals(mode)) {
+                // 纯文本模式：提取正文
+                content = htmlDoc.body().text();
+            } else {
+                // PDF/文档模式：保留 HTML 结构
+                content = htmlDoc.body().html();
+            }
+
+            if (content == null || content.isBlank()) {
+                throw new BusinessException("网页内容为空，无法导入");
+            }
+
+            // 保存为文件
+            String safeTitle = title.replaceAll("[\\\\/:*?\"<>|]", "_");
+            Path uploadPath = getUploadPath();
+            Files.createDirectories(uploadPath);
+            String extension = "text".equals(mode) ? ".txt" : ".html";
+            String savedName = UUID.randomUUID().toString() + "_" + safeTitle + extension;
+            Path filePath = uploadPath.resolve(savedName);
+            Files.writeString(filePath, content);
+
+            // 创建文档记录
+            String fileType = "text".equals(mode) ? "txt" : "html";
+            Document doc = Document.builder()
+                    .title(title)
+                    .fileName(safeTitle + extension)
+                    .fileType(fileType)
+                    .filePath(filePath.toAbsolutePath().toString())
+                    .fileSize((long) content.getBytes(java.nio.charset.StandardCharsets.UTF_8).length)
+                    .status(DocumentStatus.PENDING)
+                    .chunkCount(0)
+                    .uploadedBy(userId)
+                    .build();
+
+            doc = documentRepository.save(doc);
+            log.info("URL 导入成功: {} → {}", url, doc.getTitle());
+
+            // 异步处理
+            processDocumentAsync(doc.getId());
+
+            return doc;
+
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("URL 导入失败: {}", url, e);
+            throw new BusinessException("URL 导入失败: " + e.getMessage());
+        }
+    }
 }

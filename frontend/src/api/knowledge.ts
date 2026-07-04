@@ -28,6 +28,18 @@ export function uploadDocument(file: File) {
   })
 }
 
+export function uploadDocuments(files: File[]) {
+  const formData = new FormData()
+  files.forEach(f => formData.append('files', f))
+  return request.post('/knowledge/documents/upload-batch', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+}
+
+export function importFromUrl(url: string, mode: string) {
+  return request.post('/knowledge/documents/import-url', { url, mode })
+}
+
 export function getDocuments(page = 0, size = 20) {
   return request.get('/knowledge/documents', { params: { page, size } })
 }
