@@ -223,9 +223,26 @@ public class DocumentService {
         );
     }
 
+    /**
+     * 获取上传目录的绝对路径
+     * 如果配置的是相对路径（如 ./data/documents），
+     * 则解析为用户主目录下的绝对路径，避免 Tomcat 临时目录干扰
+     */
+    private Path getUploadPath() {
+        Path path = Paths.get(uploadDir);
+        if (!path.isAbsolute()) {
+            // 相对路径 → 放到用户主目录下，确保有写入权限且不受 Tomcat 工作目录影响
+            String relativePath = uploadDir.startsWith("./")
+                    ? uploadDir.substring(2)
+                    : uploadDir;
+            path = Paths.get(System.getProperty("user.home"), relativePath);
+        }
+        return path;
+    }
+
     private String saveFile(MultipartFile file) {
         try {
-            Path uploadPath = Paths.get(uploadDir);
+            Path uploadPath = getUploadPath();
             Files.createDirectories(uploadPath);
 
             String originalFilename = file.getOriginalFilename();
@@ -237,6 +254,7 @@ public class DocumentService {
             Path filePath = uploadPath.resolve(savedName);
             file.transferTo(filePath.toFile());
 
+            log.info("文件已保存: {}", filePath.toAbsolutePath());
             return filePath.toAbsolutePath().toString();
         } catch (IOException e) {
             throw new BusinessException("文件保存失败: " + e.getMessage());
