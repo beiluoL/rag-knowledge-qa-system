@@ -12,6 +12,11 @@
         <span class="mode-text">{{ aiMode === 'online' ? '在线 · 阿里云百炼' : '离线 · Ollama 本地' }}</span>
         <el-icon class="mode-switch-icon"><Switch /></el-icon>
       </div>
+      <!-- RAG 可视化开关 -->
+      <div class="rag-toggle" v-if="authStore.username">
+        <span class="rag-toggle-label">RAG 过程可视化</span>
+        <el-switch v-model="ragStepsVisible" size="small" />
+      </div>
       <div class="conversation-list">
         <div
           v-for="conv in conversations"
@@ -54,6 +59,7 @@
 
     <!-- 中间聊天区 -->
     <main class="chat-main">
+
       <div v-if="!currentConversationId && messages.length === 0" class="empty-chat">
         <el-empty description="新建一个对话开始提问吧！" :image-size="120" />
       </div>
@@ -86,6 +92,51 @@
             </div>
           </div>
         </div>
+
+        <!-- RAG 思考过程块（在对话流中，用户消息之后、AI 回答之前） -->
+        <Transition name="thinking-block">
+          <div v-if="ragStepsVisible && ragSteps.length > 0" class="rag-thinking-block" :class="{ 'thinking-collapsed': !ragStepsExpanded }">
+            <!-- 折叠头部 -->
+            <div class="thinking-header" @click="ragStepsExpanded = !ragStepsExpanded">
+              <div class="thinking-header-left">
+                <span class="thinking-icon">🧠</span>
+                <span class="thinking-title" v-if="ragStepsExpanded || !isStreaming">RAG 检索过程</span>
+                <span class="thinking-title" v-else>RAG 检索 · {{ doneStepCount }}/{{ ragSteps.length }} 步骤</span>
+                <span class="thinking-total" v-if="ragTotalTime && !isStreaming">· {{ ragTotalTime }}</span>
+                <span v-if="isStreaming" class="thinking-spinner"></span>
+              </div>
+              <div class="thinking-header-right">
+                <span class="thinking-step-dots">
+                  <span v-for="s in ragSteps" :key="s.step" class="thinking-dot"
+                    :class="{ 'dot-done': s.status === 'done', 'dot-running': s.status === 'running', 'dot-pending': s.status !== 'done' && s.status !== 'running' }"></span>
+                </span>
+                <el-icon class="thinking-chevron" :class="{ 'chevron-expanded': ragStepsExpanded }"><ArrowDown /></el-icon>
+              </div>
+            </div>
+
+            <!-- 展开内容 -->
+            <div class="thinking-body" v-show="ragStepsExpanded">
+              <div class="thinking-steps">
+                <div
+                  v-for="s in ragSteps"
+                  :key="s.step"
+                  class="thinking-step"
+                  :class="{ 'step-active': s.status === 'running', 'step-finished': s.status === 'done' }"
+                >
+                  <div class="thinking-step-icon">
+                    <span v-if="s.status === 'running'" class="t-spinner"></span>
+                    <span v-else-if="s.status === 'done'" class="t-check">✓</span>
+                    <span v-else class="t-dot"></span>
+                  </div>
+                  <div class="thinking-step-text">
+                    <span class="t-label">{{ s.label }}</span>
+                    <span class="t-detail" v-if="s.status === 'done' || s.status === 'running'">{{ s.detail }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Transition>
 
         <!-- 打字中状态 -->
         <div v-if="isStreaming" class="message-item message-assistant">
@@ -128,10 +179,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Promotion } from '@element-plus/icons-vue'
+import { Plus, Promotion, ArrowDown } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { getConversations, getConversationMessages, sendMessage as sendChatMessage,
   renameConversation, deleteConversation, type Conversation, type Message, type Reference } from '@/api/chat'
@@ -152,6 +203,13 @@ const inputQuestion = ref('')
 const isStreaming = ref(false)
 const streamingContent = ref('')
 const aiMode = ref('offline')
+
+// RAG 过程可视化
+const ragStepsVisible = ref(true) // 开关
+const ragStepsExpanded = ref(true) // 折叠/展开
+const ragSteps = ref<Array<{ step: string; status: string; label: string; detail: string }>>([])
+const ragTotalTime = ref('')
+const doneStepCount = computed(() => ragSteps.value.filter(s => s.status === 'done').length)
 
 // Markdown 代码块高亮渲染器
 const renderer = new marked.Renderer()
@@ -242,6 +300,9 @@ async function handleSend() {
 
   isStreaming.value = true
   streamingContent.value = ''
+  ragSteps.value = []       // 清空上轮步骤
+  ragTotalTime.value = ''
+  ragStepsExpanded.value = true  // 新消息默认展开
 
   try {
     const response = await sendChatMessage(currentConversationId.value, question)
@@ -282,6 +343,21 @@ async function handleSend() {
             continue
           }
 
+          // step 事件：RAG 过程可视化
+          if (currentEvent === 'step') {
+            try {
+              const stepData = JSON.parse(dataStr)
+              // 更新同一步骤的状态（避免重复添加）
+              const existingIdx = ragSteps.value.findIndex(s => s.step === stepData.step)
+              if (existingIdx >= 0) {
+                ragSteps.value[existingIdx] = stepData
+              } else {
+                ragSteps.value.push(stepData)
+              }
+            } catch { /* ignore */ }
+            continue
+          }
+
           // 其他事件：JSON 格式
           try {
             const data = JSON.parse(dataStr)
@@ -296,6 +372,7 @@ async function handleSend() {
             }
             if (currentEvent === 'done') {
               if (data.references) references = data.references
+              if (data.totalTime) ragTotalTime.value = '总耗时: ' + data.totalTime
             }
           } catch {
             // 纯文本兜底
@@ -469,4 +546,197 @@ onMounted(async () => {
   margin-top: 8px;
 }
 .input-hint { font-size: 12px; color: #c0c4cc; }
+
+/* ═══════════════════════════════════════════
+   RAG 思考过程块 — 对话流内 + 可折叠
+   参考 ChatGPT/Claude 思考过程设计
+   ═══════════════════════════════════════════ */
+
+.rag-toggle {
+  padding: 8px 16px;
+  font-size: 12px;
+  color: #606266;
+  background: #fafbfc;
+  border-bottom: 1px solid #ebeef5;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.rag-toggle-label { font-size: 12px; font-weight: 500; }
+
+/* 思考块入场动画 */
+.thinking-block-enter-active {
+  animation: thinkIn 0.3s ease-out;
+}
+.thinking-block-leave-active {
+  animation: thinkOut 0.2s ease-in;
+}
+@keyframes thinkIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes thinkOut {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-4px); }
+}
+
+/* ── 思考块容器 ── */
+.rag-thinking-block {
+  margin: 0 0 16px 48px;   /* 与 AI 消息对齐（avatar 宽度 36 + gap 12） */
+  max-width: 75%;
+  background: #fafbfd;
+  border: 1px solid #e8ecf1;
+  border-radius: 10px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+.rag-thinking-block.thinking-collapsed {
+  background: #f8f9fb;
+}
+
+/* ── 折叠头部 ── */
+.thinking-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+.thinking-header:hover { background: rgba(0,0,0,0.02); }
+.thinking-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.thinking-icon { font-size: 15px; flex-shrink: 0; }
+.thinking-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #4a5568;
+  white-space: nowrap;
+}
+.thinking-total {
+  font-size: 12px;
+  color: #a0aec0;
+  white-space: nowrap;
+}
+.thinking-spinner {
+  width: 14px; height: 14px;
+  border: 2px solid #e2e8f0;
+  border-top-color: #667eea;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+/* 步骤圆点指示器 */
+.thinking-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.thinking-step-dots {
+  display: flex;
+  gap: 4px;
+}
+.thinking-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  transition: all 0.3s;
+}
+.thinking-dot.dot-done    { background: #68d391; }
+.thinking-dot.dot-running { background: #667eea; animation: dotPulse 0.8s ease-in-out infinite; }
+.thinking-dot.dot-pending { background: #e2e8f0; }
+@keyframes dotPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.5); opacity: 0.5; }
+}
+
+.thinking-chevron {
+  font-size: 14px;
+  color: #a0aec0;
+  transition: transform 0.25s ease;
+}
+.thinking-chevron.chevron-expanded {
+  transform: rotate(180deg);
+}
+
+/* ── 展开内容 ── */
+.thinking-body {
+  border-top: 1px solid #edf2f7;
+  background: #fff;
+  animation: bodyIn 0.25s ease-out;
+}
+@keyframes bodyIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.thinking-steps {
+  padding: 8px 14px 12px;
+}
+
+.thinking-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 0;
+  transition: all 0.2s;
+}
+.thinking-step + .thinking-step {
+  border-top: 1px solid #f7fafc;
+}
+
+/* 步骤图标 */
+.thinking-step-icon {
+  width: 20px; height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.t-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #e2e8f0;
+}
+.t-check {
+  color: #68d391;
+  font-size: 11px;
+  font-weight: bold;
+}
+.t-spinner {
+  width: 13px; height: 13px;
+  border: 2px solid #e2e8f0;
+  border-top-color: #667eea;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 步骤文字 */
+.thinking-step-text {
+  flex: 1; min-width: 0;
+}
+.t-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #4a5568;
+  display: block;
+}
+.step-active .t-label { color: #667eea; }
+.t-detail {
+  font-size: 11px;
+  color: #a0aec0;
+  margin-top: 2px;
+  display: block;
+  line-height: 1.4;
+}
+.step-active .t-detail { color: #667eea; }
+.step-finished .t-detail { color: #68d391; }
 </style>

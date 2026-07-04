@@ -2,10 +2,11 @@
 # 后端 Dockerfile — 多阶段构建
 # 阶段1: Maven 编译打包
 # 阶段2: JRE 运行 JAR
+# 使用 Ubuntu 基础镜像（ARM64 兼容性好）
 # ============================================
 
 # --- 阶段 1：编译 ---
-FROM maven:3.9-eclipse-temurin-17-alpine AS builder
+FROM maven:3.9-eclipse-temurin-17 AS builder
 
 WORKDIR /build
 # 先复制 pom.xml，利用 Docker 缓存层（依赖不常变）
@@ -17,7 +18,7 @@ COPY src ./src
 RUN mvn package -DskipTests -B -q
 
 # --- 阶段 2：运行 ---
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:17-jre
 
 WORKDIR /app
 

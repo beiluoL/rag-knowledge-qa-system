@@ -46,6 +46,10 @@ public class RAGService {
     @Value("${app.rag.max-history-rounds}")
     private int maxHistoryRounds;
 
+    public int getTopK() { return topK; }
+    public int getMaxHistoryRounds() { return maxHistoryRounds; }
+    public String getCurrentMode() { return aiProvider.getMode(); }
+
     private static final String SYSTEM_PROMPT = """
             你是电商知识库助手，专门回答关于平台上商品的问题。
 
