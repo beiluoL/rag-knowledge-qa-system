@@ -40,7 +40,8 @@
       </el-row>
       <div class="tool-row">
         <el-input v-model="searchKeyword" placeholder="搜索文档标题或标签..." clearable
-          :prefix-icon="Search" @input="onSearch" class="search-input" />
+          :prefix-icon="Search" @input="onSearch" @keyup.enter="loadDocuments" @clear="loadDocuments" class="search-input" />
+        <el-button type="primary" :icon="Search" @click="loadDocuments">查询</el-button>
         <el-select v-model="statusFilter" placeholder="状态筛选" clearable size="default" class="status-select" @change="loadDocuments">
           <el-option label="全部" value="" />
           <el-option label="待处理" value="PENDING" />
@@ -53,8 +54,15 @@
       <!-- ====== 列表 / 卡片视图 ====== -->
       <div class="doc-content" v-loading="loadingDocs">
         <!-- 列表视图 -->
-        <el-table v-if="viewMode === 'list'" :data="documents" stripe>
+        <el-table v-if="viewMode === 'list'" :data="documents" stripe class="doc-table">
           <el-table-column type="selection" width="40" />
+          <el-table-column label="" width="48" align="center">
+            <template #default="{ row }">
+              <span class="file-ico" :class="fileColorClass(row.fileType)" :title="row.fileType.toUpperCase()">
+                <el-icon><component :is="fileIconComp(row.fileType)" /></el-icon>
+              </span>
+            </template>
+          </el-table-column>
           <el-table-column prop="id" label="ID" width="60" />
           <el-table-column prop="title" label="标题" min-width="180" show-overflow-tooltip />
           <el-table-column label="标签" width="140">
@@ -91,7 +99,7 @@
             <el-col v-for="doc in documents" :key="doc.id" :xs="24" :sm="12" :md="8" :lg="6" style="margin-bottom:16px">
               <div class="doc-card">
                 <div class="card-check"><el-checkbox :model-value="selectedIds.includes(doc.id)" @change="(v: boolean) => toggleSelect(doc.id, v)" /></div>
-                <div class="card-icon" :class="'icon-' + doc.fileType" @click="viewDetail(doc.id)">
+                <div class="card-icon" :class="fileColorClass(doc.fileType)" @click="viewDetail(doc.id)">
                   <el-icon><component :is="fileIconComp(doc.fileType)" /></el-icon>
                 </div>
                 <div class="card-title" :title="doc.title" @click="viewDetail(doc.id)">{{ doc.title }}</div>
@@ -297,7 +305,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Upload, RefreshCw, Copy, Search, Download,
   List, LayoutGrid, Folder, Link, Image, Coins, CheckCircle2, MessageCircle,
-  FileText, Ticket, StickyNote, Loader2
+  FileText, StickyNote, Code, Table, Loader2
 } from 'lucide-vue-next'
 import { getDocuments, uploadDocuments, deleteDocument, getDocumentDetail, getStats,
   importFromUrl, updateDocument, updateChunk, deleteChunk,
@@ -336,13 +344,22 @@ const previewExcelData = ref<Record<string, any[][]>>({})
 
 const stats = reactive({ documentCount: 0, chunkCount: 0, embeddingCount: 0 })
 
-// 文件类型 → Element Plus 图标组件
+// 文件类型 → Lucide 图标组件（列表与卡片共用，保证图标一致）
 const FILE_ICONS: Record<string, any> = {
-  pdf: FileText, docx: Ticket, doc: Ticket,
-  xlsx: LayoutGrid, xls: LayoutGrid, csv: LayoutGrid,
-  md: StickyNote, txt: StickyNote, html: StickyNote
+  pdf: FileText, doc: FileText, docx: FileText,
+  xlsx: Table, xls: Table, csv: Table,
+  md: StickyNote, txt: StickyNote, html: Code, xml: Code
 }
 function fileIconComp(t: string) { return FILE_ICONS[t] || FileText }
+// 文件类型 → 配色类名（与卡片视图共用 .icon-*）
+function fileColorClass(t: string) {
+  const map: Record<string, string> = {
+    pdf: 'icon-pdf', doc: 'icon-doc', docx: 'icon-docx',
+    xlsx: 'icon-xlsx', xls: 'icon-xls', csv: 'icon-csv',
+    md: 'icon-md', txt: 'icon-txt', html: 'icon-html', xml: 'icon-xml'
+  }
+  return map[t] || 'icon-md'
+}
 
 // ── 工具 ──
 function statusType(s:string){ const m:Record<string,string>={PENDING:'info',PROCESSING:'warning',COMPLETED:'success',FAILED:'danger'}; return m[s]||'info' }
@@ -565,8 +582,18 @@ onMounted(loadDocuments)
 .icon-docx, .icon-doc { background: var(--primary-50); color: var(--primary-600); }
 .icon-xlsx, .icon-xls, .icon-csv { background: var(--success-light); color: var(--success); }
 .icon-md, .icon-txt { background: var(--surface-3); color: var(--text-secondary); }
-.card-title { font-size: 14px; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 8px; cursor: pointer; }
+.card-title { font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 8px; cursor: pointer; }
 .card-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+
+/* ── 列表/卡片统一文件图标盒（与卡片配色一致） ── */
+.file-ico { width: 30px; height: 30px; border-radius: var(--radius-md); display: inline-flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+.file-ico :deep(.el-icon) { font-size: 16px; }
+.icon-html, .icon-xml { background: var(--surface-3); color: var(--text-secondary); }
+
+/* ── 列表表格文字统一 ── */
+.doc-table :deep(.el-table__cell) { font-size: var(--text-sm); color: var(--text-primary); vertical-align: middle; }
+.doc-table :deep(.el-table th .cell) { font-weight: 600; color: var(--text-primary); }
+.doc-table :deep(.el-table .cell) { line-height: 1.5; }
 .card-info { display: flex; gap: 12px; font-size: var(--text-xs); color: var(--text-secondary); margin-bottom: 4px; }
 .card-info span { display: inline-flex; align-items: center; gap: 4px; }
 .card-info :deep(.el-icon) { font-size: 14px; }

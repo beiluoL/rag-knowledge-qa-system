@@ -62,6 +62,24 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: '学习中心' }
   },
   {
+    path: '/learn/cards',
+    name: 'StudyCards',
+    component: () => import('@/views/StudyCardsBrowseView.vue'),
+    meta: { requiresAuth: true, title: '学习卡片库' }
+  },
+  {
+    path: '/learn/card/:kbId/:index',
+    name: 'StudyCardDetail',
+    component: () => import('@/views/StudyCardDetailView.vue'),
+    meta: { requiresAuth: true, title: '卡片详情' }
+  },
+  {
+    path: '/learn/code',
+    name: 'CodePractice',
+    component: () => import('@/views/CodePracticeView.vue'),
+    meta: { requiresAuth: true, title: '代码练习' }
+  },
+  {
     path: '/learn/:mode',
     name: 'LearnMode',
     component: () => import('@/views/LearningModeView.vue'),

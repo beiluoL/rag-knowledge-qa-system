@@ -97,6 +97,31 @@
         </button>
       </div>
 
+      <!-- 学习工具 -->
+      <div class="section-head">
+        <h3 class="ui-section-title">学习工具</h3>
+      </div>
+      <div class="ui-grid tool-grid" role="list">
+        <button class="mode-card" type="button" role="listitem" aria-label="浏览学习卡片库" @click="goPath('/learn/cards')">
+          <div class="mode-icon"><el-icon><Layers /></el-icon></div>
+          <div class="mode-name">学习卡片库</div>
+          <div class="mode-desc">以列表 / 时间轴浏览全部卡片，点击查看完整内容</div>
+          <div class="mode-go">进入 <el-icon><ArrowRight /></el-icon></div>
+        </button>
+        <button class="mode-card" type="button" role="listitem" aria-label="打开代码练习编辑器" @click="goPath('/learn/code')">
+          <div class="mode-icon"><el-icon><Code2 /></el-icon></div>
+          <div class="mode-name">代码练习</div>
+          <div class="mode-desc">LeetCode 风格编辑器，编写代码并实时运行查看结果</div>
+          <div class="mode-go">进入 <el-icon><ArrowRight /></el-icon></div>
+        </button>
+        <button class="mode-card" type="button" role="listitem" aria-label="进入知识库对话" @click="goPath('/chat')">
+          <div class="mode-icon"><el-icon><MessageCircle /></el-icon></div>
+          <div class="mode-name">知识库对话</div>
+          <div class="mode-desc">基于已学知识库进行 AI 问答，边学边问巩固所学</div>
+          <div class="mode-go">进入 <el-icon><ArrowRight /></el-icon></div>
+        </button>
+      </div>
+
       <!-- 今日任务 + 成就 -->
       <div class="bottom-grid">
         <section class="ui-card">
@@ -181,7 +206,10 @@ import {
   FileText,
   Newspaper,
   Megaphone,
-  Trophy
+  Trophy,
+  Code2,
+  Layers,
+  MessageCircle
 } from 'lucide-vue-next'
 import { getDashboard, generateTasks, getAchievements, type Dashboard, type Achievement, type StudyTask } from '@/api/learning'
 
@@ -235,6 +263,9 @@ const dailySummary = computed(() => {
 
 function goMode(mode: string) {
   router.push(`/learn/${mode}`)
+}
+function goPath(p: string) {
+  router.push(p)
 }
 function goTask(t: StudyTask) {
   const q: Record<string, string> = {}
@@ -387,6 +418,8 @@ onMounted(() => {
 
 /* ── 底部网格 ── */
 .bottom-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: var(--space-xl); margin-top: var(--space-2xl); }
+.tool-grid { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 860px) { .tool-grid { grid-template-columns: 1fr; } }
 .panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg); gap: var(--space-md); }
 .ui-section-title.sm { margin-bottom: 0; font-size: var(--text-base); }
 

@@ -38,6 +38,9 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
 
     long countByKnowledgeBaseId(Long knowledgeBaseId);
 
+    /** 判断某知识库下是否已存在同标题文档（示例灌库幂等用） */
+    boolean existsByTitleAndKnowledgeBaseId(String title, Long knowledgeBaseId);
+
     /** 删除知识库时，将归属文档置为未分类（不删除文档） */
     @Modifying
     @Query("UPDATE Document d SET d.knowledgeBaseId = null WHERE d.knowledgeBaseId = :kbId")
