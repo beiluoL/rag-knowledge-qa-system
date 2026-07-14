@@ -315,6 +315,25 @@ rag-knowledge-qa-system/
 → LLM 流式生成 → SSE 逐字推送前端 → 打字机效果 + 引用标注
 ```
 
+## 代码仓库安全与提交流程
+
+本仓库已配置为**同时推送到 Gitee 与 GitHub**：`git push origin master` 会通过双 push-url 自动同步两个平台（`github` 远程作为单推 GitHub 的备用）。
+
+### 敏感信息保护（.gitignore 规则）
+
+`.gitignore` 已排除以下**严禁提交**的文件/目录，提交前务必确认它们永远不会进入 Git 历史：
+
+| 忽略规则 | 排除原因 |
+|----------|----------|
+| `.env`、`application-secrets.yml` | 数据库密码、DashScope API Key、JWT 签名密钥等机密配置 |
+| `.claude/` | 本地 AI 编码工具缓存与配置 |
+| `.workbuddy/` | 本地 Agent 记忆（含个人偏好、项目私记），泄露即个人信息外泄 |
+| `.qoder/` | 本地 IDE/AI 工具目录，含本地状态 |
+
+> ⚠️ **切勿**使用 `git add -f` 强制添加上述文件。每次 `git add -A` 后，建议先 `git status` 扫一眼，确认这些目录/文件**没有**出现在待提交列表中。
+>
+> 这两行（`.workbuddy/`、`.qoder/`）是后续为防本地 Agent 目录泄露而补的规则——这类目录默认不含项目代码，纯属本地状态。
+
 ## License
 
 MIT
