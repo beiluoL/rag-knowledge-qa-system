@@ -20,6 +20,8 @@ export interface Message {
   role: string
   content: string
   references?: Reference[]
+  /** 拒答标志：检索未命中相关资料时由后端置为 true */
+  refused?: boolean
   /** 用户反馈：like/dislike/null */
   feedback?: string
   createdAt: string
@@ -39,7 +41,7 @@ export interface Reference {
  * @param question 用户问题
  * @returns fetch Response，用于读取 SSE 流
  */
-export function sendMessage(conversationId: number | null, question: string) {
+export function sendMessage(conversationId: number | null, question: string, knowledgeBaseId?: number) {
   // 使用 fetch 处理 SSE 流式响应（Axios 不支持 ReadableStream）
   const token = localStorage.getItem('accessToken')
   return fetch(`${API_BASE_URL}/chat/send`, {
@@ -48,7 +50,7 @@ export function sendMessage(conversationId: number | null, question: string) {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
     },
-    body: JSON.stringify({ conversationId, question })
+    body: JSON.stringify({ conversationId, question, knowledgeBaseId })
   })
 }
 

@@ -65,6 +65,10 @@ app:
     chat-model: qwen-plus
     embedding-model: text-embedding-v2
 
+  # 文档自动加工：上传后是否调用大模型生成摘要 + 提取关键词标签
+  ai:
+    auto-enrich: true
+
   jwt:
     secret: ${JWT_SECRET:}
     access-token-expiration: 1800000

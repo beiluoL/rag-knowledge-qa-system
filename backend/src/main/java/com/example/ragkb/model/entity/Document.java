@@ -49,6 +49,14 @@ public class Document {
     @Column(name = "ai_mode", length = 10)
     private String aiMode;
 
+    /** 归属知识库 ID（泛化多领域，RAG 检索按此隔离） */
+    @Column(name = "knowledge_base_id")
+    private Long knowledgeBaseId;
+
+    /** 知识库分类（如 技术文档/法律法规），用于筛选与提示词注入 */
+    @Column(length = 100)
+    private String category;
+
     @Column(name = "uploaded_by")
     private Long uploadedBy;
 

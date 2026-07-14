@@ -1,9 +1,12 @@
 package com.example.ragkb.service;
 
 import com.example.ragkb.model.dto.ReferenceDTO;
+import com.example.ragkb.model.entity.KnowledgeBase;
 import com.example.ragkb.model.entity.Message;
 import com.example.ragkb.repository.ChunkEmbeddingRepository;
+import com.example.ragkb.repository.KnowledgeBaseRepository;
 import com.example.ragkb.repository.MessageRepository;
+import com.example.ragkb.service.KnowledgeBaseService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,15 +32,21 @@ public class RAGService {
     private final ChunkEmbeddingRepository embeddingRepository;
     private final AiFrameworkRouter aiProvider;
     private final MessageRepository messageRepository;
+    private final KnowledgeBaseRepository knowledgeBaseRepository;
+    private final KnowledgeBaseService knowledgeBaseService;
 
     public RAGService(EmbeddingService embeddingService,
                        ChunkEmbeddingRepository embeddingRepository,
                        AiFrameworkRouter aiProvider,
-                       MessageRepository messageRepository) {
+                       MessageRepository messageRepository,
+                       KnowledgeBaseRepository knowledgeBaseRepository,
+                       KnowledgeBaseService knowledgeBaseService) {
         this.embeddingService = embeddingService;
         this.embeddingRepository = embeddingRepository;
         this.aiProvider = aiProvider;
         this.messageRepository = messageRepository;
+        this.knowledgeBaseRepository = knowledgeBaseRepository;
+        this.knowledgeBaseService = knowledgeBaseService;
     }
 
     @Value("${app.rag.top-k}")
@@ -60,16 +69,47 @@ public class RAGService {
     public String getCurrentMode() { return aiProvider.getMode(); }
     public String getCurrentFramework() { return aiProvider.getFramework(); }
 
-    private static final String SYSTEM_PROMPT = """
-            你是电商知识库助手，专门回答关于平台上商品的问题。
+    /**
+     * 公开检索入口：供智能出题 / 智能写作 / 复习计划等进阶功能复用。
+     * 按知识库（含整棵子树）做混合检索，返回 Top-K 引用。
+     *
+     * @param question         检索问题（会被向量化）
+     * @param knowledgeBaseId  知识库 ID（null 表示全部知识库）
+     * @return 检索到的引用列表（已按 RRF 融合排序）
+     */
+    public List<ReferenceDTO> search(String question, Long knowledgeBaseId) {
+        String questionVector = embeddingService.embed(question);
+        List<Long> kbIds = (knowledgeBaseId != null)
+                ? knowledgeBaseService.getDescendantIds(knowledgeBaseId) : null;
+        return retrieve(question, questionVector, kbIds);
+    }
 
-            回答规则：
-            1. 请严格基于下方【参考资料】中的内容来回答问题，不要编造信息
-            2. 回答中引用资料时，使用 [编号] 标注来源，例如 [1]、[2]
-            3. 回答要准确、简洁、专业
-            4. 如果参考资料不足以回答用户问题，请明确告知"参考资料中未找到相关信息"，并建议用户查阅商品详情页或联系客服
-            5. 如果用户问的是与商品、购物无关的问题，请礼貌引导其回到商品咨询
-            """;
+    /**
+     * 动态构建系统提示词：按知识库领域注入，去掉硬编码的"电商"限定。
+     */
+    private String buildSystemPrompt(Long knowledgeBaseId) {
+        String domain = "通用知识库";
+        String extra = "";
+        if (knowledgeBaseId != null) {
+            KnowledgeBase kb = knowledgeBaseRepository.findById(knowledgeBaseId).orElse(null);
+            if (kb != null) {
+                domain = kb.getName();
+                if (kb.getDescription() != null && !kb.getDescription().isBlank()) {
+                    extra = "\n知识库简介：" + kb.getDescription();
+                }
+            }
+        }
+        return """
+                你是%s的知识库智能助手，专门基于下方【参考资料】回答用户的问题。
+
+                回答规则：
+                1. 请严格基于【参考资料】中的内容来回答，不要编造信息
+                2. 引用资料时使用 [编号] 标注来源，例如 [1]、[2]
+                3. 回答要准确、简洁、专业、易懂
+                4. 如果参考资料不足以回答，请明确告知"参考资料中未找到相关信息"，并建议用户补充相关资料或联系管理员
+                5. 如果用户的问题与资料无关，请礼貌引导其回到知识库咨询
+                """.formatted(domain) + extra;
+    }
 
     /**
      * 构建完整的 RAG Prompt（自动向量化问题）
@@ -79,9 +119,12 @@ public class RAGService {
      * @return Prompt 对象和检索到的引用
      */
     public RAGContext preparePrompt(Long conversationId, String question) {
-        // 自动向量化问题
+        return preparePrompt(conversationId, question, null);
+    }
+
+    public RAGContext preparePrompt(Long conversationId, String question, Long knowledgeBaseId) {
         String questionVector = embeddingService.embed(question);
-        return preparePrompt(conversationId, question, questionVector);
+        return preparePrompt(conversationId, question, knowledgeBaseId, questionVector);
     }
 
     /**
@@ -94,11 +137,15 @@ public class RAGService {
      * @param questionVector 已计算好的问题向量字符串（来自查询改写后的检索查询）
      * @return Prompt 对象和检索到的引用
      */
-    public RAGContext preparePrompt(Long conversationId, String question, String questionVector) {
+    public RAGContext preparePrompt(Long conversationId, String question,
+                                     Long knowledgeBaseId, String questionVector) {
+        // 选中的知识库若是父节点，检索范围扩展到其全部子孙库（子树检索）
+        List<Long> kbIds = (knowledgeBaseId != null)
+                ? knowledgeBaseService.getDescendantIds(knowledgeBaseId) : null;
         // 1. 混合检索（使用传入的向量，避免重复调用 embeddingService）
-        List<ReferenceDTO> references = retrieve(question, questionVector);
-        log.info("混合检索返回 {} 条结果（混合检索: {}），阈值: {}",
-                references.size(), hybridEnabled, similarityThreshold);
+        List<ReferenceDTO> references = retrieve(question, questionVector, kbIds);
+        log.info("混合检索返回 {} 条结果（混合检索: {}，知识库: {}），阈值: {}",
+                references.size(), hybridEnabled, knowledgeBaseId, similarityThreshold);
 
         // 2. 构建参考资料上下文
         StringBuilder contextBuilder = new StringBuilder();
@@ -111,7 +158,7 @@ public class RAGService {
                         .append(ref.getContentSnippet()).append("\n\n");
             }
         } else {
-            contextBuilder.append("【参考资料】\n（暂无相关商品信息）\n");
+            contextBuilder.append("【参考资料】\n（暂无相关文档信息）\n");
         }
 
         // 3. 获取历史对话
@@ -120,19 +167,19 @@ public class RAGService {
         // 4. 组装完整用户消息：参考资料 + 历史对话 + 用户问题
         String userContent = contextBuilder.toString() + "\n" + history + "\n" + "【用户问题】\n" + question;
 
-        return new RAGContext(SYSTEM_PROMPT, userContent, references);
+        return new RAGContext(buildSystemPrompt(knowledgeBaseId), userContent, references);
     }
 
     /**
      * 检索：向量语义搜索 + 关键词全文搜索，RRF 融合
      */
-    private List<ReferenceDTO> retrieve(String keyword, String questionVector) {
+    private List<ReferenceDTO> retrieve(String keyword, String questionVector, List<Long> kbIds) {
         if (!hybridEnabled) {
-            return embeddingRepository.semanticSearch(questionVector, topK, similarityThreshold);
+            return embeddingRepository.semanticSearch(questionVector, topK, similarityThreshold, kbIds);
         }
         int candidate = topK * 3; // 召回候选，融合后取 Top-K
-        List<ReferenceDTO> semantic = embeddingRepository.semanticSearch(questionVector, candidate, similarityThreshold);
-        List<ReferenceDTO> keywordResults = embeddingRepository.keywordSearch(keyword, candidate);
+        List<ReferenceDTO> semantic = embeddingRepository.semanticSearch(questionVector, candidate, similarityThreshold, kbIds);
+        List<ReferenceDTO> keywordResults = embeddingRepository.keywordSearch(keyword, candidate, kbIds);
         return rrfFuse(semantic, keywordResults, topK);
     }
 

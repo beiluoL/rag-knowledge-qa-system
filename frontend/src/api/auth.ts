@@ -41,3 +41,10 @@ export function refreshToken(token: string) {
 export function logout() {
   return request.post('/auth/logout')
 }
+
+/**
+ * 获取当前登录用户信息（用于刷新后恢复会话与角色）
+ */
+export function getMe() {
+  return request.get<{ id: number; username: string; role: string }>('/auth/me')
+}

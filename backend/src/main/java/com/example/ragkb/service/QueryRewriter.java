@@ -25,22 +25,33 @@ public class QueryRewriter {
     }
 
     private static final String REWRITE_SYSTEM = """
-            你是一个电商知识库检索查询优化器。
+            你是一个知识库检索查询优化器。
             请将用户的自然语言问题改写成更适合向量数据库语义检索的简洁查询语句，
-            保留关键的商品名、型号、规格参数词，去除口语化表达和问候语。
+            保留关键的实体名、专业术语、参数词，去除口语化表达、寒暄与冗余修饰。
             只输出改写后的查询本身，不要任何解释、前缀或多余标点。
             """;
 
     /**
-     * 将用户问题改写为优化后的检索查询。
+     * 将用户问题改写为优化后的检索查询（领域中立）。
      * 若未启用或改写失败，返回原始问题（降级保证可用）。
      */
     public String rewrite(String question) {
+        return rewrite(question, null);
+    }
+
+    /**
+     * 将用户问题改写，可附带知识库领域提示以产出更贴合的查询。
+     */
+    public String rewrite(String question, String domainHint) {
         if (!enabled) {
             return question;
         }
+        String system = REWRITE_SYSTEM;
+        if (domainHint != null && !domainHint.isBlank()) {
+            system += "\n当前知识库领域：" + domainHint + "，请结合该领域术语优化查询。";
+        }
         try {
-            String rewritten = aiProvider.chat(REWRITE_SYSTEM, question).trim();
+            String rewritten = aiProvider.chat(system, question).trim();
             // 防御：模型若输出了多余解释，仅取首个非空行
             if (rewritten.contains("\n")) {
                 rewritten = rewritten.lines()

@@ -12,26 +12,28 @@ export interface DocumentChunk {
 }
 
 // ── 上传 ──
-export function uploadDocument(file: File, chunkSize?: number, chunkOverlap?: number) {
+export function uploadDocument(file: File, chunkSize?: number, chunkOverlap?: number, knowledgeBaseId?: number) {
   const formData = new FormData()
   formData.append('file', file)
   if (chunkSize) formData.append('chunkSize', String(chunkSize))
   if (chunkOverlap) formData.append('chunkOverlap', String(chunkOverlap))
+  if (knowledgeBaseId) formData.append('knowledgeBaseId', String(knowledgeBaseId))
   return request.post('/knowledge/documents/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   })
 }
 
-export function uploadDocuments(files: File[]) {
+export function uploadDocuments(files: File[], knowledgeBaseId?: number) {
   const formData = new FormData()
   files.forEach(f => formData.append('files', f))
+  if (knowledgeBaseId) formData.append('knowledgeBaseId', String(knowledgeBaseId))
   return request.post('/knowledge/documents/upload-batch', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   })
 }
 
-export function importFromUrl(url: string, mode: string) {
-  return request.post('/knowledge/documents/import-url', { url, mode })
+export function importFromUrl(url: string, mode: string, knowledgeBaseId?: number) {
+  return request.post('/knowledge/documents/import-url', { url, mode, knowledgeBaseId })
 }
 
 // ── 查询 ──

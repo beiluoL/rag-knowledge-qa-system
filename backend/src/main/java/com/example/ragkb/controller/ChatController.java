@@ -116,8 +116,9 @@ public class ChatController {
                     "混合检索 Top-" + ragService.getTopK() + "（向量+关键词 RRF 融合）");
             writer.flush();
 
-            // 传入已计算的 questionVector，避免 RAGService 内部重复向量化
-            RAGContext ragContext = ragService.preparePrompt(conversationId, question, questionVector);
+            // 传入已计算的 questionVector 与知识库 ID，避免 RAGService 内部重复向量化
+            RAGContext ragContext = ragService.preparePrompt(
+                    conversationId, question, request.getKnowledgeBaseId(), questionVector);
             long t2Done = System.currentTimeMillis();
 
             List<ReferenceDTO> references = ragContext.references();
@@ -182,10 +183,13 @@ public class ChatController {
 
             // 9. 完成（总耗时）
             long totalTime = t3Done - t1;
+            // 拒答标志：检索阶段未命中任何相关片段时，回答大概率为"无法回答"
+            boolean refused = references.isEmpty();
             sendSSE(writer, "done",
                     objectMapper.writeValueAsString(Map.of(
                             "conversationId", conversationId,
                             "references", ragContext.references(),
+                            "refused", refused,
                             "totalTime", totalTime + "ms"
                     )));
             writer.flush();

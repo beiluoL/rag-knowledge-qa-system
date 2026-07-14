@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { login as loginApi, register as registerApi, logout as logoutApi, type LoginParams, type RegisterParams } from '@/api/auth'
+import { login as loginApi, register as registerApi, logout as logoutApi, getMe, type LoginParams, type RegisterParams } from '@/api/auth'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<any>(null)
@@ -31,6 +31,24 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
+   * 拉取当前用户信息（刷新后恢复会话 / 角色）
+   */
+  async function fetchProfile() {
+    const { data } = await getMe()
+    user.value = data
+    return data
+  }
+
+  /**
+   * 清除本地会话（token 失效时调用，不通知后端）
+   */
+  function clearSession() {
+    token.value = ''
+    user.value = null
+    localStorage.clear()
+  }
+
+  /**
    * 用户登出：先通知后端将 token 加入黑名单，再清除本地存储
    */
   async function logout() {
@@ -45,5 +63,5 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.clear()
   }
 
-  return { user, token, isLoggedIn, isAdmin, username, userId, login, register, logout, saveAuth }
+  return { user, token, isLoggedIn, isAdmin, username, userId, login, register, logout, fetchProfile, clearSession, saveAuth }
 })

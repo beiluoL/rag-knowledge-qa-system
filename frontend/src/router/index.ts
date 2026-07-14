@@ -38,22 +38,72 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true }
   },
   {
-    path: '/admin/knowledge',
-    name: 'AdminKnowledge',
-    component: () => import('@/views/AdminKnowledgeView.vue'),
-    meta: { requiresAuth: true, requiresAdmin: true }
+    path: '/quiz',
+    name: 'Quiz',
+    component: () => import('@/views/QuizView.vue'),
+    meta: { requiresAuth: true, title: '智能出题' }
   },
   {
-    path: '/admin/users',
-    name: 'AdminUsers',
-    component: () => import('@/views/AdminUsersView.vue'),
-    meta: { requiresAuth: true, requiresAdmin: true }
+    path: '/writing',
+    name: 'Writing',
+    component: () => import('@/views/WritingView.vue'),
+    meta: { requiresAuth: true, title: '智能写作' }
   },
   {
-    path: '/admin/dashboard',
-    name: 'AdminDashboard',
-    component: () => import('@/views/AdminDashboardView.vue'),
-    meta: { requiresAuth: true, requiresAdmin: true }
+    path: '/review-plan',
+    name: 'ReviewPlan',
+    component: () => import('@/views/ReviewPlanView.vue'),
+    meta: { requiresAuth: true, title: '复习计划' }
+  },
+  {
+    path: '/learn',
+    name: 'Learn',
+    component: () => import('@/views/LearningDashboardView.vue'),
+    meta: { requiresAuth: true, title: '学习中心' }
+  },
+  {
+    path: '/learn/:mode',
+    name: 'LearnMode',
+    component: () => import('@/views/LearningModeView.vue'),
+    meta: { requiresAuth: true, title: '学习模式' }
+  },
+  {
+    path: '/admin',
+    component: () => import('@/views/AdminLayout.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true },
+    redirect: '/admin/knowledge',
+    children: [
+      {
+        path: 'knowledge',
+        name: 'AdminKnowledge',
+        component: () => import('@/views/AdminKnowledgeView.vue'),
+        meta: { requiresAuth: true, requiresAdmin: true, title: '文档管理' }
+      },
+      {
+        path: 'kb',
+        name: 'KnowledgeBaseManage',
+        component: () => import('@/views/KnowledgeBaseManageView.vue'),
+        meta: { requiresAuth: true, requiresAdmin: true, title: '知识库与标签' }
+      },
+      {
+        path: 'users',
+        name: 'AdminUsers',
+        component: () => import('@/views/AdminUsersView.vue'),
+        meta: { requiresAuth: true, requiresAdmin: true, title: '用户管理' }
+      },
+      {
+        path: 'dashboard',
+        name: 'AdminDashboard',
+        component: () => import('@/views/AdminDashboardView.vue'),
+        meta: { requiresAuth: true, requiresAdmin: true, title: '系统概览' }
+      },
+      {
+        path: 'conversation-config',
+        name: 'AdminConversationConfig',
+        component: () => import('@/views/AdminChatConfigView.vue'),
+        meta: { requiresAuth: true, requiresAdmin: true, title: '对话配置' }
+      }
+    ]
   },
   {
     path: '/:pathMatch(.*)*',
@@ -67,20 +117,23 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach((to, _from, next) => {
+router.beforeEach(async (to) => {
   const authStore = useAuthStore()
+  // 刷新后 token 存在但用户信息丢失时，先恢复会话（确保管理员路由判定正确）
+  if (authStore.token && !authStore.user) {
+    try {
+      await authStore.fetchProfile()
+    } catch {
+      authStore.clearSession()
+    }
+  }
   const isAuthenticated = authStore.isLoggedIn
   const isAdmin = authStore.isAdmin
 
-  if (to.meta.requiresAuth && !isAuthenticated) {
-    next('/login')
-  } else if (to.meta.guest && isAuthenticated) {
-    next('/chat')
-  } else if (to.meta.requiresAdmin && !isAdmin) {
-    next('/chat')
-  } else {
-    next()
-  }
+  if (to.meta.requiresAuth && !isAuthenticated) return '/login'
+  if (to.meta.guest && isAuthenticated) return '/chat'
+  if (to.meta.requiresAdmin && !isAdmin) return '/chat'
+  return true
 })
 
 export default router

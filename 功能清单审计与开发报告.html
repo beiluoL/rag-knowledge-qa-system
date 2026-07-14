@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RAG 知识库 · 功能清单审计与开发报告</title>
+<style>
+  :root{--brand:#4f46e5;--brand2:#7c3aed;--ok:#16a34a;--warn:#f59e0b;--bad:#dc2626;--bg:#f6f7fb;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:#1f2937;line-height:1.6;padding:32px;}
+  .wrap{max-width:1080px;margin:0 auto;}
+  h1{font-size:26px;font-weight:800;background:linear-gradient(135deg,var(--brand),var(--brand2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+  .sub{color:#6b7280;font-size:14px;margin:8px 0 24px;}
+  .card{background:#fff;border:1px solid #eef0f4;border-radius:14px;padding:20px 22px;margin-bottom:18px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 10px 28px rgba(16,24,40,.06);}
+  .card h2{font-size:18px;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid #f1f2f6;vertical-align:top;}
+  th{background:#f8f9fc;font-weight:700;color:#475569;font-size:12.5px;}
+  tr:last-child td{border-bottom:none;}
+  .tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;white-space:nowrap;}
+  .t-ok{background:rgba(22,163,74,.12);color:var(--ok);}
+  .t-part{background:rgba(245,158,11,.14);color:var(--warn);}
+  .t-no{background:rgba(220,38,38,.12);color:var(--bad);}
+  .t-defer{background:rgba(79,70,229,.12);color:var(--brand);}
+  .feat{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:6px;}
+  .fbox{border:1px solid #eef0f4;border-radius:12px;padding:14px 16px;background:linear-gradient(135deg,rgba(79,70,229,.04),rgba(124,58,237,.04));}
+  .fbox h3{font-size:14.5px;margin-bottom:6px;color:var(--brand);}
+  .fbox p{font-size:12.5px;color:#4b5563;}
+  .fbox code{background:#eef0f4;padding:1px 6px;border-radius:5px;font-size:12px;}
+  .note{font-size:13px;color:#475569;background:var(--surface-2,#f8f9fc);border-left:3px solid var(--brand);padding:12px 16px;border-radius:8px;}
+  ul{margin:6px 0 0 18px;font-size:13px;color:#4b5563;}
+  .pill{display:inline-block;background:var(--brand);color:#fff;font-size:12px;font-weight:700;padding:3px 10px;border-radius:8px;margin-right:6px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>RAG 知识库系统 · 功能清单审计与开发报告</h1>
+  <div class="sub">对照您提供的 3 大类功能需求逐项审计，并补齐未实现项。后端已编译、前端已构建、接口已冒烟验证通过。</div>
+
+  <div class="card">
+    <h2>一、审计总表</h2>
+    <table>
+      <thead><tr><th>类别</th><th>功能点</th><th>状态</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td rowspan="4">1 知识库构建与管理</td><td>多格式文档上传与解析（PDF/Word/MD/TXT…）</td><td><span class="tag t-ok">已实现</span></td><td>Apache Tika 自动解析，前端支持拖拽/URL/粘贴</td></tr>
+        <tr><td>自动化加工与向量化（分块+Embedding）</td><td><span class="tag t-ok">已实现</span></td><td>滑动窗口分块 + pgvector 向量化落地</td></tr>
+        <tr><td>自动摘要 + 关键词提取</td><td><span class="tag t-part">本次补全</span></td><td>原先仅手动标签；现已上传后 AI 自动生成摘要+关键词</td></tr>
+        <tr><td>可视化知识管理后台 + 多独立知识库</td><td><span class="tag t-ok">已实现</span></td><td>文档 CRUD/搜索/编辑/删除 + 知识库树与分类</td></tr>
+        <tr><td rowspan="5">2 AI 智能问答</td><td>基于知识库的精准问答 + 引用来源</td><td><span class="tag t-ok">已实现</span></td><td>混合检索(RRF) + LLM 生成 + references 引用</td></tr>
+        <tr><td>可控拒答机制（相似度阈值）</td><td><span class="tag t-ok">已实现</span></td><td><code>app.rag.similarity-threshold</code> 可配，低于阈值不采信</td></tr>
+        <tr><td>拒答提示 UI</td><td><span class="tag t-part">本次补全</span></td><td>前端新增橙色「未检索到资料」警告横幅</td></tr>
+        <tr><td>多轮对话与上下文记忆</td><td><span class="tag t-ok">已实现</span></td><td>会话管理 + 历史拼接(默认3轮)</td></tr>
+        <tr><td>流式(SSE) + Markdown 渲染</td><td><span class="tag t-ok">已实现</span></td><td>SSE 逐字输出 + 代码高亮 + 表格/列表</td></tr>
+        <tr><td rowspan="7">3 进阶功能</td><td>智能出题（选择题/问答题）</td><td><span class="tag t-part">本次开发</span></td><td>原先仅闪卡；现可基于 KB 生成选择题/问答题并判分</td></tr>
+        <tr><td>知识查漏补缺（弱项推荐）</td><td><span class="tag t-defer">暂缓</span></td><td>需掌握度追踪字段，当前无，建议下一轮做</td></tr>
+        <tr><td>生成个性化复习计划</td><td><span class="tag t-part">本次开发</span></td><td>基于 KB 文档+学习目标，AI 生成按天计划</td></tr>
+        <tr><td>智能写作（总结/报告/文章）</td><td><span class="tag t-part">本次开发</span></td><td>基于 KB 内容撰写 Markdown 并附引用</td></tr>
+        <tr><td>自动标签与分类</td><td><span class="tag t-part">本次补全</span></td><td>随 A3 自动打标签；分类仍由后台维护(更可控)</td></tr>
+        <tr><td>接入外部工具（MCP）</td><td><span class="tag t-defer">暂缓</span></td><td>需引入 MCP 框架，建议作为独立智能体专项</td></tr>
+        <tr><td>专属 AI 智能体（定时提醒/总结）</td><td><span class="tag t-defer">暂缓</span></td><td>依赖 MCP/定时任务智能体，架构未定，单会话放不下</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>二、本次新开发 / 补全的功能</h2>
+    <div class="feat">
+      <div class="fbox"><h3>📝 智能出题 (C9)</h3><p>选知识库+题型(选择/问答)+数量 → AI 生成题目，选项可点选判分、显示答案/解析/来源。接口 <code>POST /api/quiz/generate</code></p></div>
+      <div class="fbox"><h3>✍️ 智能写作 (C12)</h3><p>填主题(+风格/篇幅/大纲) → AI 基于知识库撰写 Markdown 文章，附引用来源，可一键复制。接口 <code>POST /api/writing/compose</code></p></div>
+      <div class="fbox"><h3>📅 复习计划 (C11)</h3><p>选知识库+目标+天数+时长 → AI 生成按天递进的复习路线。接口 <code>POST /api/learning/review-plan</code></p></div>
+      <div class="fbox"><h3>🏷️ 自动加工 (A3)</h3><p>文档上传后 AI 自动生成一句话摘要与关键词标签(存入 description/tags)，受 <code>app.ai.auto-enrich</code> 开关控制</p></div>
+      <div class="fbox"><h3>🚫 拒答横幅 (B8)</h3><p>检索未命中时，回答上方显示橙色警告，提示「答案可能超出知识库范围」</p></div>
+      <div class="fbox"><h3>🔗 入口与路由</h3><p>聊天页用户菜单新增「智能出题/智能写作/复习计划」；新增 <code>/quiz</code> <code>/writing</code> <code>/review-plan</code> 路由</p></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>三、暂缓项与下一步建议</h2>
+    <div class="note">
+      <span class="pill">A2 卡片导入</span>现有「学习卡片」本就由知识库 chunks 动态派生，无需独立「导入卡片到知识库」环节，概念上已覆盖。<br/><br/>
+      <span class="pill">C10 查漏补缺</span>需为每张学习卡片增加「掌握度」字段并在学习时回写，再据此推荐弱项。建议下一轮：<code>StudyCard</code> 加 <code>mastery</code> 字段 + 弱项推荐接口。<br/><br/>
+      <span class="pill">C14 MCP/智能体</span>建议独立专项：引入 Spring AI MCP 或 langchain4j-mcp，先做「每日学习提醒 / 知识库每日摘要」定时智能体，再扩展外部工具调用。
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>四、如何体验</h2>
+    <ul>
+      <li>登录 <code>admin / 123456</code>，打开聊天页左侧用户菜单 → 进入「智能出题 / 智能写作 / 复习计划」。</li>
+      <li>出题：选一个已含示例文档的知识库（如「Java学习」「大模型学习」），生成后即可作答判分。</li>
+      <li>写作：输入主题（如「Java 集合框架概述」）生成文章，底部展示引用来源。</li>
+      <li>拒答：在限定某知识库后问与之无关的问题，回答上方会出现橙色警告横幅。</li>
+      <li>自动标签：上传一篇新文档，处理完成后在「知识库与标签」后台可见 AI 生成的摘要与关键词。</li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>

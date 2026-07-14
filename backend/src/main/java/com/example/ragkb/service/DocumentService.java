@@ -3,11 +3,17 @@ package com.example.ragkb.service;
 import com.example.ragkb.exception.BusinessException;
 import com.example.ragkb.model.entity.Chunk;
 import com.example.ragkb.model.entity.Document;
+import com.example.ragkb.model.entity.KbCategory;
+import com.example.ragkb.model.entity.KnowledgeBase;
 import com.example.ragkb.model.enums.DocumentStatus;
 import com.example.ragkb.repository.ChunkEmbeddingRepository;
 import com.example.ragkb.repository.ChunkRepository;
 import com.example.ragkb.repository.DocumentRepository;
+import com.example.ragkb.repository.KbCategoryRepository;
+import com.example.ragkb.repository.KnowledgeBaseRepository;
 import com.example.ragkb.util.TextSplitter;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.parser.AutoDetectParser;
@@ -25,6 +31,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -40,7 +47,22 @@ public class DocumentService {
     private final EmbeddingService embeddingService;
     private final TextSplitter textSplitter;
     private final DynamicAiProvider aiProvider;
+    private final KnowledgeBaseRepository knowledgeBaseRepository;
+    private final KbCategoryRepository kbCategoryRepository;
     private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+    /** AI 框架路由器：用于自动加工（摘要 / 关键词）调用大模型 */
+    private final AiFrameworkRouter aiRouter;
+    private final ObjectMapper objectMapper;
+
+    @Value("${app.ai.auto-enrich:true}")
+    private boolean autoEnrich;
+
+    /** 由知识库的分类 ID 解析分类名称（用于文档冗余字段） */
+    private String categoryNameOf(KnowledgeBase kb) {
+        if (kb == null || kb.getCategoryId() == null) return null;
+        return kbCategoryRepository.findById(kb.getCategoryId())
+                .map(KbCategory::getName).orElse(null);
+    }
 
     @Value("${app.storage.upload-dir}")
     private String uploadDir;
@@ -52,10 +74,18 @@ public class DocumentService {
     private int chunkOverlap;
 
     /**
-     * 上传文档
+     * 上传文档（不指定知识库）
      */
     @Transactional
     public Document uploadDocument(MultipartFile file, Long userId) {
+        return uploadDocument(file, userId, null);
+    }
+
+    /**
+     * 上传文档并归属到知识库（泛化多领域）
+     */
+    @Transactional
+    public Document uploadDocument(MultipartFile file, Long userId, Long knowledgeBaseId) {
         // 校验文件
         String originalFilename = file.getOriginalFilename();
         if (originalFilename == null || originalFilename.isBlank()) {
@@ -71,7 +101,7 @@ public class DocumentService {
         String savedPath = saveFile(file);
 
         // 创建文档记录
-        Document doc = Document.builder()
+        Document.DocumentBuilder builder = Document.builder()
                 .title(originalFilename)
                 .fileName(originalFilename)
                 .fileType(fileType)
@@ -79,8 +109,14 @@ public class DocumentService {
                 .fileSize(file.getSize())
                 .status(DocumentStatus.PENDING)
                 .chunkCount(0)
-                .uploadedBy(userId)
-                .build();
+                .uploadedBy(userId);
+        if (knowledgeBaseId != null) {
+            knowledgeBaseRepository.findById(knowledgeBaseId).ifPresent(kb -> {
+                builder.knowledgeBaseId(knowledgeBaseId);
+                builder.category(categoryNameOf(kb));
+            });
+        }
+        Document doc = builder.build();
 
         doc = documentRepository.save(doc);
         log.info("文档上传成功: {} (id: {})", originalFilename, doc.getId());
@@ -110,41 +146,120 @@ public class DocumentService {
                 throw new BusinessException("文档内容为空或无法解析");
             }
 
-            // 2. 文本切分
-            List<String> chunks = textSplitter.split(text, chunkSize, chunkOverlap);
-            log.info("文档 id={} 切分为 {} 个分块", documentId, chunks.size());
+            // 2~5. 文本切分 → 向量化 → 落库（同步复用）
+            embedAndStore(doc, text);
 
-            // 3. 保存分块
-            List<Chunk> chunkEntities = new ArrayList<>();
-            for (int i = 0; i < chunks.size(); i++) {
-                chunkEntities.add(Chunk.builder()
-                        .documentId(documentId)
-                        .chunkIndex(i)
-                        .content(chunks.get(i))
-                        .tokenCount(textSplitter.estimateTokenCount(chunks.get(i)))
-                        .build());
+            // 6. AI 自动加工：生成摘要 + 提取关键词标签（仅对真实上传文档，跳过种子文本）
+            if (!"text".equals(doc.getFileType())) {
+                enrichDocument(doc, text);
             }
-            chunkEntities = chunkRepository.saveAll(chunkEntities);
-
-            // 4. 向量化并存储
-            List<String> chunkTexts = chunks;
-            List<String> vectors = embeddingService.embedBatchInChunks(chunkTexts, 16);
-
-            for (int i = 0; i < chunkEntities.size() && i < vectors.size(); i++) {
-                embeddingRepository.saveEmbedding(chunkEntities.get(i).getId(), vectors.get(i));
-            }
-
-            // 5. 更新文档状态
-            doc.setChunkCount(chunks.size());
-            doc.setStatus(DocumentStatus.COMPLETED);
-            documentRepository.save(doc);
-            log.info("文档处理完成: id={}, chunks={}", documentId, chunks.size());
+            log.info("文档处理完成: id={}, chunks={}", documentId, doc.getChunkCount());
 
         } catch (Exception e) {
             log.error("文档处理失败: id={}", documentId, e);
             doc.setStatus(DocumentStatus.FAILED);
             documentRepository.save(doc);
         }
+    }
+
+    /**
+     * 文本切分 → 向量化 → 落库（同步）。供异步处理与种子初始化复用。
+     */
+    private void embedAndStore(Document doc, String text) {
+        List<String> chunks = textSplitter.split(text, chunkSize, chunkOverlap);
+        log.info("文档 id={} 切分为 {} 个分块", doc.getId(), chunks.size());
+
+        // 保存分块
+        List<Chunk> chunkEntities = new ArrayList<>();
+        for (int i = 0; i < chunks.size(); i++) {
+            chunkEntities.add(Chunk.builder()
+                    .documentId(doc.getId())
+                    .chunkIndex(i)
+                    .content(chunks.get(i))
+                    .tokenCount(textSplitter.estimateTokenCount(chunks.get(i)))
+                    .build());
+        }
+        chunkEntities = chunkRepository.saveAll(chunkEntities);
+
+        // 向量化并存储
+        List<String> vectors = embeddingService.embedBatchInChunks(chunks, 16);
+        for (int i = 0; i < chunkEntities.size() && i < vectors.size(); i++) {
+            embeddingRepository.saveEmbedding(chunkEntities.get(i).getId(), vectors.get(i));
+        }
+
+        // 更新文档状态
+        doc.setChunkCount(chunks.size());
+        doc.setStatus(DocumentStatus.COMPLETED);
+        documentRepository.save(doc);
+    }
+
+    /**
+     * AI 自动加工：在向量化完成后，调用大模型为文档生成一句话摘要（description）
+     * 并提取关键词标签（tags）。失败不影响主流程（文档已 COMPLETED）。
+     */
+    private void enrichDocument(Document doc, String text) {
+        if (!autoEnrich) return;
+        try {
+            String excerpt = text.length() > 3000 ? text.substring(0, 3000) : text;
+            String system = "你是知识库文档助理。只输出一个 JSON 对象，不要包含 Markdown 代码块标记：" +
+                    "{\"summary\":\"一句话中文摘要，不超过60字\",\"keywords\":[\"关键词1\",\"关键词2\"，最多8个]}。";
+            String user = "文档标题：" + doc.getTitle() + "\n文档内容：\n" + excerpt;
+            String raw = aiRouter.chat(system, user);
+
+            String json = raw;
+            int s = json.indexOf('{');
+            int e = json.lastIndexOf('}');
+            if (s >= 0 && e > s) json = json.substring(s, e + 1);
+
+            Map<String, Object> parsed = objectMapper.readValue(json,
+                    new TypeReference<Map<String, Object>>() {});
+            String summary = parsed.get("summary") != null ? parsed.get("summary").toString() : null;
+            List<String> keywords = new ArrayList<>();
+            Object kw = parsed.get("keywords");
+            if (kw instanceof List) {
+                for (Object o : (List<?>) kw) {
+                    if (o != null) keywords.add(o.toString().trim());
+                }
+            }
+
+            Document toUpdate = documentRepository.findById(doc.getId()).orElse(null);
+            if (toUpdate != null) {
+                if (summary != null && !summary.isBlank()) toUpdate.setDescription(summary);
+                if (!keywords.isEmpty()) toUpdate.setTags(String.join(",", keywords));
+                documentRepository.save(toUpdate);
+                log.info("文档自动加工完成: id={}, 关键词={}", doc.getId(), keywords.size());
+            }
+        } catch (Exception ex) {
+            log.warn("文档自动加工失败（不影响主流程）: id={}", doc.getId(), ex);
+        }
+    }
+
+    /**
+     * 直接以文本灌入一篇示例文档（用于预置知识库初始化，同步完成分块与向量化）。
+     * 文件相关字段置空，状态直接为 COMPLETED。
+     */
+    @Transactional
+    public void seedTextDocument(String title, String content, Long knowledgeBaseId, Long userId) {
+        KnowledgeBase kb = knowledgeBaseRepository.findById(knowledgeBaseId).orElse(null);
+        Document doc = Document.builder()
+                .title(title)
+                .fileName(title)
+                .fileType("text")
+                .filePath("")
+                .fileSize((long) content.length())
+                .status(DocumentStatus.COMPLETED)
+                .knowledgeBaseId(knowledgeBaseId)
+                .category(kb != null ? categoryNameOf(kb) : null)
+                .chunkCount(0)
+                .uploadedBy(userId)
+                .build();
+        doc = documentRepository.save(doc);
+        embedAndStore(doc, content);
+    }
+
+    /** 统计某知识库下的文档数（供示例灌库幂等判断） */
+    public long countDocs(Long knowledgeBaseId) {
+        return documentRepository.countByKnowledgeBaseId(knowledgeBaseId);
     }
 
     /**
@@ -363,8 +478,8 @@ public class DocumentService {
      * 上传文档（支持自定义切分参数）
      */
     @Transactional
-    public Document uploadDocument(MultipartFile file, Long userId, Integer customChunkSize, Integer customOverlap) {
-        Document doc = uploadDocument(file, userId);
+    public Document uploadDocument(MultipartFile file, Long userId, Integer customChunkSize, Integer customOverlap, Long knowledgeBaseId) {
+        Document doc = uploadDocument(file, userId, knowledgeBaseId);
         // 暂存自定义参数，异步处理时使用
         if (customChunkSize != null) {
             chunkSize = customChunkSize;
@@ -458,7 +573,7 @@ public class DocumentService {
      * @param mode "text" 抓取纯文本 | "pdf" 抓取内容另存为文档
      */
     @Transactional
-    public Document importFromUrl(String url, String mode, Long userId) {
+    public Document importFromUrl(String url, String mode, Long userId, Long knowledgeBaseId) {
         try {
             // 使用 Jsoup 抓取网页
             org.jsoup.Connection conn = org.jsoup.Jsoup.connect(url)
@@ -496,7 +611,7 @@ public class DocumentService {
 
             // 创建文档记录
             String fileType = "text".equals(mode) ? "txt" : "html";
-            Document doc = Document.builder()
+            Document.DocumentBuilder builder = Document.builder()
                     .title(title)
                     .fileName(safeTitle + extension)
                     .fileType(fileType)
@@ -504,8 +619,14 @@ public class DocumentService {
                     .fileSize((long) content.getBytes(java.nio.charset.StandardCharsets.UTF_8).length)
                     .status(DocumentStatus.PENDING)
                     .chunkCount(0)
-                    .uploadedBy(userId)
-                    .build();
+                    .uploadedBy(userId);
+            if (knowledgeBaseId != null) {
+                knowledgeBaseRepository.findById(knowledgeBaseId).ifPresent(kb -> {
+                    builder.knowledgeBaseId(knowledgeBaseId);
+                    builder.category(categoryNameOf(kb));
+                });
+            }
+            Document doc = builder.build();
 
             doc = documentRepository.save(doc);
             log.info("URL 导入成功: {} → {}", url, doc.getTitle());

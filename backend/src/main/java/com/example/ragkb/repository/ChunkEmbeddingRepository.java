@@ -9,6 +9,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Repository
 public class ChunkEmbeddingRepository {
@@ -54,6 +55,15 @@ public class ChunkEmbeddingRepository {
      * 余弦相似度语义搜索
      */
     public List<ReferenceDTO> semanticSearch(String queryVector, int topK, double threshold) {
+        return semanticSearch(queryVector, topK, threshold, null);
+    }
+
+    /**
+     * 余弦相似度语义搜索（可按知识库隔离）
+     */
+    public List<ReferenceDTO> semanticSearch(String queryVector, int topK, double threshold, List<Long> kbIds) {
+        String kbFilter = (kbIds != null && !kbIds.isEmpty())
+                ? " AND d.knowledge_base_id IN (" + kbIds.stream().map(String::valueOf).collect(Collectors.joining(",")) + ")" : "";
         String sql = """
             SELECT
                 ce.chunk_id,
@@ -65,13 +75,18 @@ public class ChunkEmbeddingRepository {
             JOIN chunks c ON c.id = ce.chunk_id
             JOIN documents d ON d.id = c.document_id
             WHERE 1 - (ce.embedding <=> ?::vector) >= ?
+            %s
             ORDER BY ce.embedding <=> ?::vector
             LIMIT ?
-        """.formatted(tableName());
+        """.formatted(tableName(), kbFilter);
 
-        return jdbcTemplate.query(sql,
-                new Object[]{queryVector, queryVector, threshold, queryVector, topK},
-                this::mapToReferenceDTO);
+        List<Object> params = new ArrayList<>();
+        params.add(queryVector);
+        params.add(queryVector);
+        params.add(threshold);
+        params.add(queryVector);
+        params.add(topK);
+        return jdbcTemplate.query(sql, params.toArray(), this::mapToReferenceDTO);
     }
 
     /**
@@ -84,10 +99,19 @@ public class ChunkEmbeddingRepository {
      * @return 按相关度排序的文档片段列表
      */
     public List<ReferenceDTO> keywordSearch(String keyword, int topK) {
+        return keywordSearch(keyword, topK, null);
+    }
+
+    /**
+     * 关键词全文搜索（可按知识库隔离）
+     */
+    public List<ReferenceDTO> keywordSearch(String keyword, int topK, List<Long> kbIds) {
         String tsQuery = buildOrTsQuery(keyword);
         if (tsQuery == null) {
             return List.of();
         }
+        String kbFilter = (kbIds != null && !kbIds.isEmpty())
+                ? " AND d.knowledge_base_id IN (" + kbIds.stream().map(String::valueOf).collect(Collectors.joining(",")) + ")" : "";
         String sql = """
             SELECT
                 c.id AS chunk_id,
@@ -98,12 +122,15 @@ public class ChunkEmbeddingRepository {
             FROM chunks c
             JOIN documents d ON d.id = c.document_id
             WHERE to_tsvector('simple', c.content) @@ to_tsquery('simple', ?)
+            %s
             ORDER BY similarity DESC
             LIMIT ?
-        """;
-        return jdbcTemplate.query(sql,
-                new Object[]{tsQuery, tsQuery, topK},
-                this::mapToReferenceDTO);
+        """.formatted(kbFilter);
+        List<Object> params = new ArrayList<>();
+        params.add(tsQuery);
+        params.add(tsQuery);
+        params.add(topK);
+        return jdbcTemplate.query(sql, params.toArray(), this::mapToReferenceDTO);
     }
 
     /**

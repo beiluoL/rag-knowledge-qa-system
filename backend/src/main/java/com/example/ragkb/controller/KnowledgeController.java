@@ -30,13 +30,14 @@ public class KnowledgeController {
             @RequestParam("file") MultipartFile file,
             @RequestParam(required = false) Integer chunkSize,
             @RequestParam(required = false) Integer chunkOverlap,
+            @RequestParam(required = false) Long knowledgeBaseId,
             Authentication authentication) {
         Long userId = Long.parseLong(authentication.getPrincipal().toString());
         Document doc;
         if (chunkSize != null || chunkOverlap != null) {
-            doc = documentService.uploadDocument(file, userId, chunkSize, chunkOverlap);
+            doc = documentService.uploadDocument(file, userId, chunkSize, chunkOverlap, knowledgeBaseId);
         } else {
-            doc = documentService.uploadDocument(file, userId);
+            doc = documentService.uploadDocument(file, userId, knowledgeBaseId);
         }
         return ResponseEntity.ok(Map.of(
                 "id", doc.getId(), "title", doc.getTitle(),
@@ -47,13 +48,14 @@ public class KnowledgeController {
     @PostMapping("/documents/upload-batch")
     public ResponseEntity<Map<String, Object>> uploadDocuments(
             @RequestParam("files") List<MultipartFile> files,
+            @RequestParam(required = false) Long knowledgeBaseId,
             Authentication authentication) {
         Long userId = Long.parseLong(authentication.getPrincipal().toString());
         List<Map<String, Object>> results = new ArrayList<>();
         int success = 0, failed = 0;
         for (MultipartFile file : files) {
             try {
-                Document doc = documentService.uploadDocument(file, userId);
+                Document doc = documentService.uploadDocument(file, userId, knowledgeBaseId);
                 results.add(Map.of("fileName", file.getOriginalFilename(), "id", doc.getId(), "status", "OK"));
                 success++;
             } catch (Exception e) {
@@ -69,9 +71,11 @@ public class KnowledgeController {
             @RequestBody Map<String, String> body, Authentication authentication) {
         String url = body.get("url");
         String mode = body.getOrDefault("mode", "text");
+        Long knowledgeBaseId = body.get("knowledgeBaseId") != null
+                ? Long.valueOf(body.get("knowledgeBaseId")) : null;
         Long userId = Long.parseLong(authentication.getPrincipal().toString());
         if (url == null || url.isBlank()) return ResponseEntity.badRequest().body(Map.of("error", "URL 不能为空"));
-        Document doc = documentService.importFromUrl(url, mode, userId);
+        Document doc = documentService.importFromUrl(url, mode, userId, knowledgeBaseId);
         return ResponseEntity.ok(Map.of("id", doc.getId(), "title", doc.getTitle(),
                 "status", doc.getStatus().name(), "message", "网页内容已导入"));
     }

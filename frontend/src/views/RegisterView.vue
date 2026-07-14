@@ -1,34 +1,65 @@
 <template>
-  <div class="register-container">
-    <div class="register-card">
-      <h1 class="title">创建账号</h1>
+  <main class="register">
+    <section class="register-card" aria-labelledby="register-title">
+      <header class="brand">
+        <BookOpen class="brand-logo" />
+        <span class="brand-name">智能知识库</span>
+      </header>
+
+      <h1 id="register-title" class="title">创建账号</h1>
+      <p class="subtitle">填写以下信息，开启你的知识库之旅</p>
+
       <el-form :model="form" :rules="rules" ref="formRef" label-width="0" size="large">
         <el-form-item prop="username">
-          <el-input v-model="form.username" placeholder="用户名" prefix-icon="User" />
+          <el-input
+            v-model="form.username"
+            placeholder="用户名"
+            aria-label="用户名"
+            :prefix-icon="User"
+          />
         </el-form-item>
         <el-form-item prop="password">
-          <el-input v-model="form.password" type="password" placeholder="密码（至少4位）" prefix-icon="Lock" show-password />
+          <el-input
+            v-model="form.password"
+            type="password"
+            placeholder="密码（至少4位）"
+            aria-label="密码"
+            :prefix-icon="Lock"
+            show-password
+          />
         </el-form-item>
         <el-form-item prop="confirmPassword">
-          <el-input v-model="form.confirmPassword" type="password" placeholder="确认密码" prefix-icon="Lock" show-password />
+          <el-input
+            v-model="form.confirmPassword"
+            type="password"
+            placeholder="确认密码"
+            aria-label="确认密码"
+            :prefix-icon="Lock"
+            show-password
+          />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :loading="loading" @click="handleRegister" style="width:100%">
-            注 册
-          </el-button>
+          <el-button
+            class="submit"
+            type="primary"
+            :loading="loading"
+            @click="handleRegister"
+          >注 册</el-button>
         </el-form-item>
-        <div class="login-link">
-          已有账号？<router-link to="/login">立即登录</router-link>
-        </div>
       </el-form>
-    </div>
-  </div>
+
+      <p class="alt">
+        已有账号？<router-link to="/login">立即登录</router-link>
+      </p>
+    </section>
+  </main>
 </template>
 
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { User, Lock, BookOpen } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
@@ -74,21 +105,106 @@ async function handleRegister() {
 </script>
 
 <style scoped>
-.register-container {
-  height: 100vh;
+.register {
+  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--bg);
+  padding: var(--space-2xl);
+  box-sizing: border-box;
 }
+
 .register-card {
-  width: 400px;
-  padding: 40px;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+  width: 100%;
+  max-width: 440px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4xl) var(--space-3xl);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--duration-base);
+
+  &:hover {
+    box-shadow: var(--shadow-md);
+  }
 }
-.title { text-align: center; font-size: 24px; margin-bottom: 32px; color: #303133; }
-.login-link { text-align: center; font-size: 14px; color: #909399; }
-.login-link a { color: #409eff; }
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-3xl);
+}
+
+.brand-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--primary-50);
+  padding: 6px;
+  color: var(--primary-600);
+  box-shadow: var(--shadow-sm);
+}
+
+.brand-name {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.2px;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 var(--space-xs);
+  line-height: 1.3;
+}
+
+.subtitle {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-3xl);
+}
+
+.submit {
+  width: 100%;
+  height: 48px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+}
+
+.alt {
+  text-align: center;
+  margin-top: var(--space-lg);
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.alt a {
+  color: var(--primary-600);
+  font-weight: 500;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+@media (max-width: 768px) {
+  .register-card {
+    padding: var(--space-3xl) var(--space-2xl);
+  }
+}
+
+@media (max-width: 480px) {
+  .register {
+    padding: var(--space-lg);
+  }
+  .register-card {
+    padding: var(--space-2xl) var(--space-lg);
+  }
+}
 </style>

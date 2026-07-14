@@ -1,14 +1,18 @@
 package com.example.ragkb.controller;
 
 import com.example.ragkb.config.JwtTokenProvider;
+import com.example.ragkb.exception.BusinessException;
 import com.example.ragkb.model.dto.LoginRequest;
 import com.example.ragkb.model.dto.LoginResponse;
 import com.example.ragkb.model.dto.RegisterRequest;
+import com.example.ragkb.model.entity.User;
+import com.example.ragkb.repository.UserRepository;
 import com.example.ragkb.service.AuthService;
 import com.example.ragkb.service.TokenBlacklistService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,6 +26,7 @@ public class AuthController {
     private final AuthService authService;
     private final TokenBlacklistService tokenBlacklistService;
     private final JwtTokenProvider jwtTokenProvider;
+    private final UserRepository userRepository;
 
     /**
      * 用户注册
@@ -65,5 +70,20 @@ public class AuthController {
             }
         }
         return ResponseEntity.ok(Map.of("message", "登出成功"));
+    }
+
+    /**
+     * 获取当前登录用户信息（用于刷新后恢复会话角色，路由守卫据此判断管理员权限）
+     */
+    @GetMapping("/me")
+    public ResponseEntity<Map<String, Object>> me(Authentication authentication) {
+        Long userId = Long.parseLong(authentication.getPrincipal().toString());
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(401, "用户不存在"));
+        return ResponseEntity.ok(Map.of(
+                "id", user.getId(),
+                "username", user.getUsername(),
+                "role", user.getRole().name()
+        ));
     }
 }

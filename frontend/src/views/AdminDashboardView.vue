@@ -1,65 +1,87 @@
 <template>
-  <div class="chat-layout">
-    <aside class="sidebar" :style="{ width: '280px' }">
-      <div class="sidebar-header"><h3>📊 系统管理</h3></div>
-      <nav class="admin-nav">
-        <el-button @click="router.push('/admin/knowledge')" text style="width:100%;justify-content:flex-start">📚 知识库管理</el-button>
-        <el-button @click="router.push('/admin/users')" text style="width:100%;justify-content:flex-start">👥 用户管理</el-button>
-        <el-button type="primary" text style="width:100%;justify-content:flex-start">📊 系统仪表板</el-button>
-      </nav>
-      <div class="sidebar-footer">
-        <el-button @click="router.push('/chat')" style="width:100%">← 返回对话</el-button>
+  <div class="page-container">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">系统概览</h1>
+        <p class="page-subtitle">平台运行关键指标与近期管理员操作记录。</p>
       </div>
-    </aside>
-    <main class="admin-main">
-      <!-- 统计卡片 -->
-      <el-row :gutter="20" class="stats-row">
-        <el-col :xs="12" :sm="8" :md="4" v-for="item in statCards" :key="item.key">
-          <el-card shadow="hover" class="stat-card" :style="{ borderTop: `3px solid ${item.color}` }">
-            <div class="stat-icon">{{ item.icon }}</div>
-            <div class="stat-value">{{ stats[item.key as keyof typeof stats] ?? 0 }}</div>
-            <div class="stat-label">{{ item.label }}</div>
-          </el-card>
-        </el-col>
-      </el-row>
+      <el-button :icon="MessageCircle" @click="router.push('/chat')">返回对话</el-button>
+    </div>
 
-      <!-- 操作日志 -->
-      <el-card style="margin-top:20px">
-        <template #header>
-          <div class="card-header">
-            <span>📋 操作日志</span>
-            <el-button @click="loadLogs" :icon="Refresh" size="small">刷新</el-button>
+    <!-- 统计卡片 -->
+    <div class="stat-grid">
+      <div v-for="item in statCards" :key="item.key" class="ui-stat-card">
+        <template v-if="loadingStats">
+          <el-skeleton animated style="width: 100%">
+            <template #template>
+              <div class="skeleton-stat">
+                <el-skeleton-item variant="circle" style="width: 48px; height: 48px" />
+                <div class="skeleton-stat-text">
+                  <el-skeleton-item variant="text" style="width: 60%" />
+                  <el-skeleton-item variant="text" style="width: 40%" />
+                </div>
+              </div>
+            </template>
+          </el-skeleton>
+        </template>
+        <template v-else>
+          <div class="ui-stat-icon" :class="`tone-${item.tone}`">
+            <el-icon><component :is="item.icon" /></el-icon>
+          </div>
+          <div>
+            <div class="ui-stat-value">{{ stats[item.key as keyof typeof stats] ?? 0 }}</div>
+            <div class="ui-stat-label">{{ item.label }}</div>
           </div>
         </template>
-        <el-table :data="logs" stripe v-loading="loadingLogs">
-          <el-table-column prop="id" label="ID" width="60" />
-          <el-table-column prop="username" label="用户" width="100" />
-          <el-table-column prop="action" label="操作" width="120">
-            <template #default="{ row }">
-              <el-tag :type="actionType(row.action)" size="small">{{ actionText(row.action) }}</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="targetType" label="对象类型" width="100" />
-          <el-table-column prop="targetId" label="对象ID" width="80" />
-          <el-table-column prop="detail" label="详情" min-width="200" show-overflow-tooltip />
-          <el-table-column prop="ipAddress" label="IP" width="130" />
-          <el-table-column label="时间" width="170">
-            <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
-          </el-table-column>
-        </el-table>
-        <div class="pagination-wrap">
-          <el-pagination v-model:current-page="currentPage" :page-size="pageSize"
-            :total="totalLogs" layout="total, prev, pager, next" @current-change="onPageChange" />
+      </div>
+    </div>
+
+    <!-- 操作日志 -->
+    <el-card class="log-card">
+      <template #header>
+        <div class="card-header">
+          <span class="card-title">操作日志</span>
+          <el-button @click="loadLogs" :icon="RefreshCw" size="small" :loading="loadingLogs">刷新</el-button>
         </div>
-      </el-card>
-    </main>
+      </template>
+      <el-table :data="logs" stripe v-loading="loadingLogs">
+        <el-table-column prop="id" label="ID" width="60" />
+        <el-table-column prop="username" label="用户" width="100" />
+        <el-table-column prop="action" label="操作" width="120">
+          <template #default="{ row }">
+            <el-tag :type="actionType(row.action)" size="small">{{ actionText(row.action) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="targetType" label="对象类型" width="100" />
+        <el-table-column prop="targetId" label="对象ID" width="80" />
+        <el-table-column prop="detail" label="详情" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="ipAddress" label="IP" width="130" />
+        <el-table-column label="时间" width="170">
+          <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
+        </el-table-column>
+        <template #empty>
+          <el-empty description="暂无操作日志" />
+        </template>
+      </el-table>
+      <div class="pagination-wrap">
+        <el-pagination
+          v-model:current-page="currentPage"
+          :page-size="pageSize"
+          :total="totalLogs"
+          layout="total, prev, pager, next"
+          @current-change="onPageChange"
+        />
+      </div>
+    </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Refresh } from '@element-plus/icons-vue'
+import {
+  RefreshCw, MessageCircle, User, FileText, LayoutGrid, MessageSquare
+} from 'lucide-vue-next'
 import { getSystemStats, getOperationLogs, type SystemStats, type OperationLog } from '@/api/admin'
 
 const router = useRouter()
@@ -69,13 +91,15 @@ const stats = reactive<SystemStats>({
   totalConversations: 0, totalMessages: 0
 })
 
+const loadingStats = ref(true)
+
 const statCards = [
-  { key: 'totalUsers', label: '用户总数', icon: '👥', color: '#409eff' },
-  { key: 'totalDocuments', label: '文档总数', icon: '📄', color: '#67c23a' },
-  { key: 'totalChunks', label: '分块总数', icon: '🧩', color: '#e6a23c' },
-  { key: 'totalConversations', label: '会话总数', icon: '💬', color: '#f56c6c' },
-  { key: 'totalMessages', label: '消息总数', icon: '📨', color: '#909399' },
-]
+  { key: 'totalUsers', label: '用户总数', icon: User, tone: 'primary' },
+  { key: 'totalDocuments', label: '文档总数', icon: FileText, tone: 'success' },
+  { key: 'totalChunks', label: '分块总数', icon: LayoutGrid, tone: 'warning' },
+  { key: 'totalConversations', label: '会话总数', icon: MessageCircle, tone: 'danger' },
+  { key: 'totalMessages', label: '消息总数', icon: MessageSquare, tone: 'info' },
+] as const
 
 const logs = ref<OperationLog[]>([])
 const loadingLogs = ref(false)
@@ -111,11 +135,14 @@ function formatTime(dateStr: string) {
 
 /** 加载系统统计数据 */
 async function loadStats() {
+  loadingStats.value = true
   try {
     const { data } = await getSystemStats()
     Object.assign(stats, data)
   } catch (e) {
     console.error('加载统计数据失败', e)
+  } finally {
+    loadingStats.value = false
   }
 }
 
@@ -146,19 +173,37 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.chat-layout { height: 100vh; display: flex; }
-.sidebar { background: #fff; border-right: 1px solid #e4e7ed; display: flex; flex-direction: column; }
-.sidebar-header { padding: 16px; border-bottom: 1px solid #ebeef5; }
-.sidebar-footer { padding: 16px; border-top: 1px solid #ebeef5; margin-top: auto; }
-.admin-nav { padding: 8px; display: flex; flex-direction: column; gap: 4px; }
-.admin-main { flex: 1; padding: 24px; overflow-y: auto; background: #f5f7fa; }
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--space-lg);
+  margin-bottom: var(--space-2xl);
+}
 
-.stats-row { margin-bottom: 8px; }
-.stat-card { text-align: center; padding: 8px 0; }
-.stat-icon { font-size: 32px; margin-bottom: 8px; }
-.stat-value { font-size: 28px; font-weight: 700; color: #303133; }
-.stat-label { font-size: 13px; color: #909399; margin-top: 4px; }
+.ui-stat-icon :deep(.el-icon) { font-size: 1.4rem; }
+.tone-primary { background: var(--primary-50); color: var(--primary-600); }
+.tone-success { background: var(--success-light); color: var(--success); }
+.tone-warning { background: var(--warning-light); color: var(--warning); }
+.tone-danger { background: var(--danger-light); color: var(--danger); }
+.tone-info { background: var(--info-light); color: var(--info); }
 
+.skeleton-stat { display: flex; align-items: center; gap: var(--space-md); }
+.skeleton-stat-text { flex: 1; display: flex; flex-direction: column; gap: var(--space-sm); }
+
+.log-card { background: var(--surface); }
 .card-header { display: flex; justify-content: space-between; align-items: center; }
-.pagination-wrap { margin-top: 16px; display: flex; justify-content: flex-end; }
+.card-title { font-weight: 600; font-size: 1rem; color: var(--text-primary); }
+.pagination-wrap { margin-top: var(--space-lg); display: flex; justify-content: flex-end; }
+
+@media (max-width: 1024px) {
+  .stat-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 768px) {
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+  .stat-grid { grid-template-columns: 1fr; }
+  /* 触摸目标 ≥44px */
+  .el-button { min-height: 44px; }
+}
 </style>
