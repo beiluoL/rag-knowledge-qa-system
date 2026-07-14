@@ -36,6 +36,18 @@
 - **JWT 认证**：access_token + refresh_token 双 Token 机制
 - **权限分离**：Admin（知识库管理 + 问答）/ User（仅问答）
 
+### 用户体系
+- **退出登录**：Token 黑名单机制，主动失效已登录 Token
+- **用户资料编辑**：昵称、头像设置
+- **管理员用户管理**：用户列表、禁用/启用、角色切换
+- **系统仪表板**：全局统计卡片（用户/文档/分块/会话/消息） + 操作日志分页
+- **操作日志审计**：异步记录用户关键操作，支持分页查询
+- **消息反馈**：AI 回答点赞/踩，支持取消反馈
+- **消息复制**：一键复制 AI 回答内容到剪贴板
+- **对话搜索**：基于 PostgreSQL 全文搜索按消息内容查找会话
+- **对话导出**：将会话内容导出为 Markdown 文件下载
+- **会话置顶**：重要会话置顶显示，📌图标标识
+
 ### 性能优化
 - pgvector IVFFlat 近似最近邻索引
 - 批量 Embedding 调用（16 条/批）
@@ -173,10 +185,11 @@ rag-knowledge-qa-system/
 │       │   │   ├── AiModeConfig.java         # 在线模式 Bean 配置
 │       │   │   └── DataInitializer.java      # 初始 admin 账号创建
 │       │   ├── controller/               # REST API 控制器
-│       │   │   ├── AuthController.java        # 登录/注册/刷新Token
-│       │   │   ├── UserController.java        # 用户信息/修改密码
+│       │   │   ├── AuthController.java        # 登录/注册/刷新Token/退出
+│       │   │   ├── UserController.java        # 用户信息/修改密码/编辑资料
+│       │   │   ├── AdminController.java       # 管理员用户管理/系统统计/操作日志
 │       │   │   ├── KnowledgeController.java   # 知识库文档管理
-│       │   │   ├── ChatController.java        # 问答 SSE 流/会话管理
+│       │   │   ├── ChatController.java        # 问答 SSE 流/会话管理/搜索/导出/置顶
 │       │   │   └── AiModeController.java      # AI 模式查询/切换
 │       │   ├── service/                  # 业务逻辑层
 │       │   │   ├── AiProvider.java            # AI 提供者接口
@@ -188,16 +201,19 @@ rag-knowledge-qa-system/
 │       │   │   ├── DocumentService.java       # 文档处理服务
 │       │   │   ├── ConversationService.java   # 会话管理服务
 │       │   │   ├── AuthService.java           # 认证服务
-│       │   │   └── UserService.java           # 用户服务
+│       │   │   ├── UserService.java           # 用户服务
+│       │   │   ├── OperationLogService.java   # 操作日志异步记录服务
+│       │   │   └── TokenBlacklistService.java # Token 黑名单服务
 │       │   ├── repository/               # 数据访问层
 │       │   │   ├── UserRepository.java
 │       │   │   ├── DocumentRepository.java
 │       │   │   ├── ChunkRepository.java
 │       │   │   ├── ChunkEmbeddingRepository.java  # 向量搜索原生SQL
 │       │   │   ├── ConversationRepository.java
-│       │   │   └── MessageRepository.java
+│       │   │   ├── MessageRepository.java
+│       │   │   └── OperationLogRepository.java    # 操作日志查询
 │       │   ├── model/
-│       │   │   ├── entity/               # 实体类（6 张表）
+│       │   │   ├── entity/               # 实体类（7 张表）
 │       │   │   ├── dto/                  # 数据传输对象
 │       │   │   └── enums/                # 枚举
 │       │   ├── exception/                # 全局异常处理
@@ -208,7 +224,10 @@ rag-knowledge-qa-system/
 │           ├── application-secrets.example.yml  # 私密配置模板
 │           └── db/migration/             # Flyway 数据库迁移
 │               ├── V1__init_schema.sql       # 基础表结构
-│               └── V2__online_embedding.sql   # 在线模式向量表
+│               ├── V2__online_embedding.sql   # 在线模式向量表
+│               ├── V3__document_tags.sql      # 文档标签
+│               ├── V4__user_profile_and_feedback.sql  # 用户资料+反馈
+│               └── V5__doc_chat_system_enhancement.sql  # 置顶+描述+操作日志
 ├── frontend/                             # Vue 3 前端
 │   ├── Dockerfile                        # 前端容器镜像
 │   ├── nginx.conf                        # Nginx 反向代理配置
@@ -218,19 +237,23 @@ rag-knowledge-qa-system/
 │       │   ├── chat.ts                   # 问答 API
 │       │   ├── knowledge.ts              # 知识库 API
 │       │   ├── user.ts                   # 用户 API
+│       │   ├── admin.ts                  # 管理员 API
 │       │   └── aimode.ts                 # AI 模式 API
 │       ├── router/                       # 路由配置 + 守卫
 │       ├── stores/                       # Pinia 状态管理
 │       ├── views/                        # 页面
 │       │   ├── LoginView.vue             # 登录页
 │       │   ├── RegisterView.vue          # 注册页
-│       │   ├── ChatView.vue              # 问答主页（含模式切换）
-│       │   ├── ProfileView.vue           # 个人中心
-│       │   ├── AdminKnowledgeView.vue    # 知识库管理
+│       │   ├── ChatView.vue              # 问答主页（含模式切换/搜索/反馈/置顶/复制）
+│       │   ├── ProfileView.vue           # 个人中心（含资料编辑）
+│       │   ├── AdminKnowledgeView.vue    # 知识库管理（含状态筛选）
+│       │   ├── AdminUsersView.vue        # 用户管理（仅管理员）
+│       │   ├── AdminDashboardView.vue    # 系统仪表板（统计+操作日志）
 │       │   └── NotFoundView.vue          # 404 页面
 │       ├── components/                   # 公共组件
 │       └── styles/                       # 全局样式 + Element Plus 主题
 ├── data/documents/                       # 上传文档存储（自动创建）
+├── CHANGELOG.md                          # 版本更新日志
 ├── CLAUDE.md                             # AI 开发指南
 ├── README.md                             # 本文件
 └── 项目说明.md                            # 详细技术说明文档
@@ -240,13 +263,14 @@ rag-knowledge-qa-system/
 
 | 表名 | 说明 | 核心字段 |
 |------|------|----------|
-| users | 用户表 | username, password_hash(BCrypt), role(ADMIN/USER) |
-| documents | 知识库文档 | title, file_type, status(PENDING→PROCESSING→COMPLETED) |
+| users | 用户表 | username, password_hash(BCrypt), role(ADMIN/USER), nickname, avatar |
+| documents | 知识库文档 | title, file_type, status(PENDING→PROCESSING→COMPLETED), ai_mode |
 | chunks | 文档分块 | content, chunk_index (500字符/块，100字符重叠) |
 | chunk_embeddings | 离线向量表(pgvector) | embedding vector(768), IVFFlat 索引 |
 | chunk_embeddings_online | 在线向量表(pgvector) | embedding vector(1536), IVFFlat 索引 |
-| conversations | 会话表 | user_id, title (自动截取首问) |
-| messages | 消息表 | role(USER/ASSISTANT), content, references_data(TEXT) |
+| conversations | 会话表 | user_id, title, message_count, pinned |
+| messages | 消息表 | role(USER/ASSISTANT), content, references_data(TEXT), feedback(like/dislike) |
+| operation_logs | 操作日志表 | user_id, action, target_type, target_id, detail, ip_address |
 
 ## API 接口概览
 
@@ -255,8 +279,15 @@ rag-knowledge-qa-system/
 | 认证 | `POST /api/auth/login` | 匿名 | 用户登录 |
 | 认证 | `POST /api/auth/register` | 匿名 | 用户注册 |
 | 认证 | `POST /api/auth/refresh` | 匿名 | 刷新 Token |
+| 认证 | `POST /api/auth/logout` | USER+ | 退出登录（Token 失效） |
 | 用户 | `GET /api/user/me` | USER+ | 当前用户信息 |
 | 用户 | `PUT /api/user/password` | USER+ | 修改密码 |
+| 用户 | `PUT /api/user/profile` | USER+ | 编辑资料（昵称/头像） |
+| 管理员 | `GET /api/admin/users` | ADMIN | 用户列表 |
+| 管理员 | `PUT /api/admin/users/{id}/toggle` | ADMIN | 禁用/启用用户 |
+| 管理员 | `PUT /api/admin/users/{id}/role` | ADMIN | 修改用户角色 |
+| 管理员 | `GET /api/admin/stats` | ADMIN | 系统全局统计 |
+| 管理员 | `GET /api/admin/logs` | ADMIN | 操作日志（分页） |
 | 知识库 | `POST /api/knowledge/documents/upload` | ADMIN | 上传文档 |
 | 知识库 | `GET /api/knowledge/documents` | ADMIN | 文档列表 |
 | 知识库 | `DELETE /api/knowledge/documents/{id}` | ADMIN | 删除文档 |
@@ -264,6 +295,10 @@ rag-knowledge-qa-system/
 | 问答 | `POST /api/chat/send` | USER+ | 发送问题（SSE流式） |
 | 问答 | `GET /api/chat/conversations` | USER+ | 会话列表 |
 | 问答 | `DELETE /api/chat/conversations/{id}` | USER+ | 删除会话 |
+| 问答 | `PUT /api/chat/messages/{id}/feedback` | USER+ | 消息反馈（点赞/踩） |
+| 问答 | `GET /api/chat/conversations/search` | USER+ | 搜索会话 |
+| 问答 | `GET /api/chat/conversations/{id}/export` | USER+ | 导出 Markdown |
+| 问答 | `PUT /api/chat/conversations/{id}/pin` | USER+ | 会话置顶/取消置顶 |
 | AI模式 | `GET /api/ai-mode` | USER+ | 查询当前模式 |
 | AI模式 | `POST /api/ai-mode/switch` | USER+ | 切换离线/在线 |
 

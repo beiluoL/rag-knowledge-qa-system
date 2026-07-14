@@ -6,6 +6,7 @@ import com.example.ragkb.service.ConversationService;
 import com.example.ragkb.service.EmbeddingService;
 import com.example.ragkb.service.RAGService;
 import com.example.ragkb.service.RAGService.RAGContext;
+import com.example.ragkb.service.QueryRewriter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -28,15 +29,18 @@ public class ChatController {
     private final RAGService ragService;
     private final ConversationService conversationService;
     private final EmbeddingService embeddingService;
+    private final QueryRewriter queryRewriter;
     private final ObjectMapper objectMapper;
 
     public ChatController(RAGService ragService,
                            ConversationService conversationService,
                            EmbeddingService embeddingService,
+                           QueryRewriter queryRewriter,
                            ObjectMapper objectMapper) {
         this.ragService = ragService;
         this.conversationService = conversationService;
         this.embeddingService = embeddingService;
+        this.queryRewriter = queryRewriter;
         this.objectMapper = objectMapper;
     }
 
@@ -77,13 +81,30 @@ public class ChatController {
             // RAG 过程逐步推送（可视化用）
             // ═══════════════════════════════════════════
 
+            // ── Step 0: 查询改写（优化检索查询）──
+            long t0 = System.currentTimeMillis();
+            sendStep(writer, "rewriting", "running", "正在优化检索查询...",
+                    "框架: " + ragService.getCurrentFramework());
+            writer.flush();
+
+            // 用改写后的查询做语义检索，原始问题仍用于关键词检索与最终 Prompt
+            String retrievalQuery = queryRewriter.rewrite(question);
+            long t0Done = System.currentTimeMillis();
+            boolean rewritten = !retrievalQuery.equals(question);
+            sendStep(writer, "rewriting", "done", rewritten ? "查询已优化" : "无需改写",
+                    "耗时 " + (t0Done - t0) + "ms"
+                            + (rewritten ? "，检索将使用优化后的查询" : ""));
+            writer.flush();
+
             // ── Step 1: 向量化问题 ──
             long t1 = System.currentTimeMillis();
             sendStep(writer, "embedding", "running", "正在向量化问题...",
-                    "模型: " + embeddingService.getMode() + " (" + embeddingService.getDimension() + "维)");
+                    "框架: " + ragService.getCurrentFramework() + "，模型: " + embeddingService.getMode()
+                            + " (" + embeddingService.getDimension() + "维)");
             writer.flush();
 
-            String questionVector = embeddingService.embed(question);
+            // 向量化的问题可复用于语义搜索，避免 RAGService 内部重复调用
+            String questionVector = embeddingService.embed(retrievalQuery);
             long t1Done = System.currentTimeMillis();
 
             sendStep(writer, "embedding", "done", "问题向量化完成",
@@ -92,10 +113,11 @@ public class ChatController {
 
             // ── Step 2: 语义搜索 ──
             sendStep(writer, "searching", "running", "正在搜索知识库...",
-                    "余弦相似度搜索 Top-" + ragService.getTopK());
+                    "混合检索 Top-" + ragService.getTopK() + "（向量+关键词 RRF 融合）");
             writer.flush();
 
-            RAGContext ragContext = ragService.preparePrompt(conversationId, question);
+            // 传入已计算的 questionVector，避免 RAGService 内部重复向量化
+            RAGContext ragContext = ragService.preparePrompt(conversationId, question, questionVector);
             long t2Done = System.currentTimeMillis();
 
             List<ReferenceDTO> references = ragContext.references();
@@ -135,7 +157,7 @@ public class ChatController {
             // ── Step 4: AI 生成 ──
             long t3 = System.currentTimeMillis();
             sendStep(writer, "generating", "running", "AI 正在生成回答...",
-                    "模型: " + ragService.getCurrentMode());
+                    "框架: " + ragService.getCurrentFramework() + "，模型: " + ragService.getCurrentMode());
             writer.flush();
 
             // 7. 生成回答（流式）
@@ -226,5 +248,66 @@ public class ChatController {
     public ResponseEntity<Map<String, String>> deleteConversation(@PathVariable Long id) {
         conversationService.deleteConversation(id);
         return ResponseEntity.ok(Map.of("message", "会话已删除"));
+    }
+
+    /**
+     * 消息反馈（点赞/踩）
+     * 仅允许对 AI 回答消息进行反馈，点击相同反馈值可取消
+     *
+     * @param id   消息 ID
+     * @param body 包含 "feedback" 字段（like/dislike）
+     */
+    @PutMapping("/messages/{id}/feedback")
+    public ResponseEntity<Map<String, String>> feedbackMessage(
+            @PathVariable Long id, @RequestBody Map<String, String> body) {
+        conversationService.feedbackMessage(id, body.get("feedback"));
+        return ResponseEntity.ok(Map.of("message", "反馈成功"));
+    }
+
+    /**
+     * 搜索会话（按消息内容关键词）
+     *
+     * @param keyword        搜索关键词
+     * @param authentication 当前用户认证信息
+     * @return 匹配的会话列表
+     */
+    @GetMapping("/conversations/search")
+    public ResponseEntity<List<Conversation>> searchConversations(
+            @RequestParam(required = false) String keyword,
+            Authentication authentication) {
+        Long userId = Long.parseLong(authentication.getPrincipal().toString());
+        return ResponseEntity.ok(conversationService.searchConversations(userId, keyword));
+    }
+
+    /**
+     * 导出会话内容为 Markdown 格式
+     * 返回纯文本，前端可直接下载保存为 .md 文件
+     *
+     * @param id 会话 ID
+     * @return Markdown 格式的会话内容
+     */
+    @GetMapping("/conversations/{id}/export")
+    public ResponseEntity<String> exportConversation(@PathVariable Long id) {
+        String markdown = conversationService.exportConversation(id);
+        return ResponseEntity.ok()
+                .header("Content-Type", "text/markdown; charset=UTF-8")
+                .header("Content-Disposition", "attachment; filename=conversation.md")
+                .body(markdown);
+    }
+
+    /**
+     * 切换会话置顶状态
+     * 点击已置顶的会话取消置顶，点击未置顶的则置顶
+     *
+     * @param id 会话 ID
+     */
+    @PutMapping("/conversations/{id}/pin")
+    public ResponseEntity<Map<String, Object>> togglePinConversation(@PathVariable Long id) {
+        Conversation conv = conversationService.togglePin(id);
+        return ResponseEntity.ok(Map.of(
+                "id", conv.getId(),
+                "pinned", Boolean.TRUE.equals(conv.getPinned()),
+                "message", Boolean.TRUE.equals(conv.getPinned()) ? "已置顶" : "已取消置顶"
+        ));
     }
 }

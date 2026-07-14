@@ -18,6 +18,23 @@
           </el-descriptions-item>
           <el-descriptions-item label="注册时间">{{ userInfo.createdAt }}</el-descriptions-item>
         </el-descriptions>
+
+        <!-- 用户资料编辑区域 -->
+        <el-divider />
+        <h3 style="margin-bottom:16px">编辑资料</h3>
+        <el-form :model="profileForm" label-width="100px" style="max-width:400px">
+          <el-form-item label="昵称">
+            <el-input v-model="profileForm.nickname" placeholder="输入昵称（可选）" maxlength="50" />
+          </el-form-item>
+          <el-form-item label="邮箱">
+            <el-input v-model="profileForm.email" placeholder="输入邮箱（可选）" maxlength="100" />
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :loading="profileSaving" @click="handleUpdateProfile">保存资料</el-button>
+          </el-form-item>
+        </el-form>
+
+        <!-- 修改密码区域 -->
         <el-divider />
         <h3 style="margin-bottom:16px">修改密码</h3>
         <el-form :model="passwordForm" :rules="rules" ref="formRef" label-width="100px" style="max-width:400px">
@@ -43,12 +60,16 @@
 import { reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { getUserInfo, changePassword } from '@/api/user'
+import { getUserInfo, changePassword, updateProfile } from '@/api/user'
 
 const router = useRouter()
 const saving = ref(false)
+const profileSaving = ref(false)
 const formRef = ref()
-const userInfo = reactive({ username: '', role: '', createdAt: '' })
+const userInfo = reactive({ username: '', email: '', nickname: '', role: '', createdAt: '' })
+
+/** 资料编辑表单 */
+const profileForm = reactive({ nickname: '', email: '' })
 
 const passwordForm = reactive({ oldPassword: '', newPassword: '', confirmPassword: '' })
 const validateConfirm = (_rule: any, value: string, callback: any) => {
@@ -77,10 +98,30 @@ async function handleChangePassword() {
   }
 }
 
+/** 保存资料修改（昵称、邮箱） */
+async function handleUpdateProfile() {
+  profileSaving.value = true
+  try {
+    const { data } = await updateProfile({
+      nickname: profileForm.nickname || undefined,
+      email: profileForm.email || undefined
+    })
+    Object.assign(userInfo, data)
+    ElMessage.success('资料更新成功')
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.message || '更新失败')
+  } finally {
+    profileSaving.value = false
+  }
+}
+
 onMounted(async () => {
   try {
     const { data } = await getUserInfo()
     Object.assign(userInfo, data)
+    // 将后端返回的资料填入编辑表单
+    profileForm.nickname = data.nickname || ''
+    profileForm.email = data.email || ''
   } catch { /* ignore */ }
 })
 </script>

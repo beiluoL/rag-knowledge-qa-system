@@ -78,14 +78,23 @@ public class KnowledgeController {
 
     // ═══════════════ 查询 ═══════════════
 
+    /**
+     * 获取文档列表（支持分页、关键词搜索、状态筛选）
+     *
+     * @param page    页码（从 0 开始）
+     * @param size    每页数量
+     * @param keyword 搜索关键词（匹配标题或标签）
+     * @param status  状态筛选（COMPLETED/PROCESSING/FAILED/PENDING）
+     */
     @GetMapping("/documents")
     public ResponseEntity<Page<Document>> getDocuments(
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String keyword) {
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String status) {
         if (keyword != null && !keyword.isBlank()) {
             return ResponseEntity.ok(documentService.searchDocuments(keyword, PageRequest.of(page, size)));
         }
-        return ResponseEntity.ok(documentService.getDocuments(PageRequest.of(page, size)));
+        return ResponseEntity.ok(documentService.getDocuments(PageRequest.of(page, size), status));
     }
 
     @GetMapping("/documents/{id}")
@@ -102,12 +111,17 @@ public class KnowledgeController {
 
     // ═══════════════ 编辑 ═══════════════
 
+    /**
+     * 更新文档信息（标题、标签、描述）
+     */
     @PutMapping("/documents/{id}")
     public ResponseEntity<Map<String, Object>> updateDocument(
             @PathVariable Long id, @RequestBody Map<String, String> body) {
-        Document doc = documentService.updateDocument(id, body.get("title"), body.get("tags"));
+        Document doc = documentService.updateDocument(id, body.get("title"), body.get("tags"), body.get("description"));
         return ResponseEntity.ok(Map.of("id", doc.getId(), "title", doc.getTitle(),
-                "tags", doc.getTags() != null ? doc.getTags() : "", "message", "更新成功"));
+                "tags", doc.getTags() != null ? doc.getTags() : "",
+                "description", doc.getDescription() != null ? doc.getDescription() : "",
+                "message", "更新成功"));
     }
 
     @PostMapping("/documents/{id}/reprocess")

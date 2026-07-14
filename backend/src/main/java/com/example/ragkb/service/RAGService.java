@@ -11,12 +11,15 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * RAG 核心编排服务
- * 负责：问题向量化 → 语义搜索 → Prompt 拼接 → LLM 生成
- * 根据 ai-mode 自动切换离线/在线模型
+ * 负责：问题向量化 → 检索（混合：向量语义 + 关键词全文，RRF 融合）→ Prompt 拼接 → LLM 生成
+ * 根据 ai-mode 自动切换离线/在线模型；根据 ai-framework 选择调用库（Spring AI / LangChain4j）。
  */
 @Service
 @Slf4j
@@ -24,12 +27,12 @@ public class RAGService {
 
     private final EmbeddingService embeddingService;
     private final ChunkEmbeddingRepository embeddingRepository;
-    private final DynamicAiProvider aiProvider;
+    private final AiFrameworkRouter aiProvider;
     private final MessageRepository messageRepository;
 
     public RAGService(EmbeddingService embeddingService,
                        ChunkEmbeddingRepository embeddingRepository,
-                       DynamicAiProvider aiProvider,
+                       AiFrameworkRouter aiProvider,
                        MessageRepository messageRepository) {
         this.embeddingService = embeddingService;
         this.embeddingRepository = embeddingRepository;
@@ -46,9 +49,16 @@ public class RAGService {
     @Value("${app.rag.max-history-rounds}")
     private int maxHistoryRounds;
 
+    @Value("${app.rag.hybrid-enabled:true}")
+    private boolean hybridEnabled;
+
+    @Value("${app.rag.rrf-k:60}")
+    private int rrfK;
+
     public int getTopK() { return topK; }
     public int getMaxHistoryRounds() { return maxHistoryRounds; }
     public String getCurrentMode() { return aiProvider.getMode(); }
+    public String getCurrentFramework() { return aiProvider.getFramework(); }
 
     private static final String SYSTEM_PROMPT = """
             你是电商知识库助手，专门回答关于平台上商品的问题。
@@ -62,22 +72,35 @@ public class RAGService {
             """;
 
     /**
-     * 构建完整的 RAG Prompt
+     * 构建完整的 RAG Prompt（自动向量化问题）
      *
      * @param conversationId 会话 ID（用于获取历史对话）
      * @param question       用户问题
      * @return Prompt 对象和检索到的引用
      */
     public RAGContext preparePrompt(Long conversationId, String question) {
-        // 1. 问题向量化
+        // 自动向量化问题
         String questionVector = embeddingService.embed(question);
+        return preparePrompt(conversationId, question, questionVector);
+    }
 
-        // 2. 语义搜索
-        List<ReferenceDTO> references = embeddingRepository.semanticSearch(
-                questionVector, topK, similarityThreshold);
-        log.info("语义搜索返回 {} 条结果，阈值: {}", references.size(), similarityThreshold);
+    /**
+     * 构建完整的 RAG Prompt（使用已计算好的向量，避免重复向量化）
+     * <p>检索阶段采用混合检索：向量语义搜索 Top-K*3 + 关键词全文搜索 Top-K*3，
+     * 再用 RRF（Reciprocal Rank Fusion）融合排序，取最终 Top-K。</p>
+     *
+     * @param conversationId 会话 ID（用于获取历史对话）
+     * @param question       用户问题（原始文本，用于关键词检索 + 拼入 Prompt）
+     * @param questionVector 已计算好的问题向量字符串（来自查询改写后的检索查询）
+     * @return Prompt 对象和检索到的引用
+     */
+    public RAGContext preparePrompt(Long conversationId, String question, String questionVector) {
+        // 1. 混合检索（使用传入的向量，避免重复调用 embeddingService）
+        List<ReferenceDTO> references = retrieve(question, questionVector);
+        log.info("混合检索返回 {} 条结果（混合检索: {}），阈值: {}",
+                references.size(), hybridEnabled, similarityThreshold);
 
-        // 3. 构建上下文
+        // 2. 构建参考资料上下文
         StringBuilder contextBuilder = new StringBuilder();
         if (!references.isEmpty()) {
             contextBuilder.append("【参考资料】\n");
@@ -91,17 +114,82 @@ public class RAGService {
             contextBuilder.append("【参考资料】\n（暂无相关商品信息）\n");
         }
 
-        // 4. 获取历史对话
+        // 3. 获取历史对话
         String history = buildHistory(conversationId);
 
-        // 5. 组装消息
+        // 4. 组装完整用户消息：参考资料 + 历史对话 + 用户问题
         String userContent = contextBuilder.toString() + "\n" + history + "\n" + "【用户问题】\n" + question;
 
         return new RAGContext(SYSTEM_PROMPT, userContent, references);
     }
 
     /**
-     * 调用 AI 生成回答（离线走 Ollama，在线走 DashScope）
+     * 检索：向量语义搜索 + 关键词全文搜索，RRF 融合
+     */
+    private List<ReferenceDTO> retrieve(String keyword, String questionVector) {
+        if (!hybridEnabled) {
+            return embeddingRepository.semanticSearch(questionVector, topK, similarityThreshold);
+        }
+        int candidate = topK * 3; // 召回候选，融合后取 Top-K
+        List<ReferenceDTO> semantic = embeddingRepository.semanticSearch(questionVector, candidate, similarityThreshold);
+        List<ReferenceDTO> keywordResults = embeddingRepository.keywordSearch(keyword, candidate);
+        return rrfFuse(semantic, keywordResults, topK);
+    }
+
+    /**
+     * RRF（Reciprocal Rank Fusion）融合两种召回结果。
+     * 融合分 = Σ 1/(k + rank)，与具体相似度数值无关，避免跨渠道分数不可比。
+     */
+    private List<ReferenceDTO> rrfFuse(List<ReferenceDTO> semantic,
+                                       List<ReferenceDTO> keyword, int topK) {
+        Map<Long, Double> fused = new HashMap<>();
+        Map<Long, ReferenceDTO> best = new LinkedHashMap<>(); // 保留首个出现的引用（语义优先）
+        Map<Long, Double> semanticScore = new HashMap<>();
+
+        accumulate(semantic, fused, best, semanticScore);
+        accumulate(keyword, fused, best, semanticScore);
+
+        if (fused.isEmpty()) return List.of();
+
+        double maxFused = fused.values().stream().mapToDouble(Double::doubleValue).max().orElse(1.0);
+
+        List<Map.Entry<Long, Double>> sorted = new ArrayList<>(fused.entrySet());
+        sorted.sort((a, b) -> Double.compare(b.getValue(), a.getValue()));
+
+        List<ReferenceDTO> result = new ArrayList<>();
+        for (Map.Entry<Long, Double> e : sorted) {
+            if (result.size() >= topK) break;
+            ReferenceDTO src = best.get(e.getKey());
+            // 展示分：优先用语义余弦相似度（0~1），否则用归一化融合分
+            double display = semanticScore.containsKey(e.getKey())
+                    ? semanticScore.get(e.getKey())
+                    : (e.getValue() / maxFused);
+            result.add(ReferenceDTO.builder()
+                    .chunkId(src.getChunkId())
+                    .documentId(src.getDocumentId())
+                    .documentTitle(src.getDocumentTitle())
+                    .contentSnippet(src.getContentSnippet())
+                    .score(display)
+                    .build());
+        }
+        return result;
+    }
+
+    private void accumulate(List<ReferenceDTO> list, Map<Long, Double> fused,
+                            Map<Long, ReferenceDTO> best, Map<Long, Double> semanticScore) {
+        for (int i = 0; i < list.size(); i++) {
+            ReferenceDTO r = list.get(i);
+            double s = 1.0 / (rrfK + i + 1);
+            fused.merge(r.getChunkId(), s, Double::sum);
+            best.putIfAbsent(r.getChunkId(), r); // 语义列表先入，作为最佳引用来源
+            if (!semanticScore.containsKey(r.getChunkId())) {
+                semanticScore.put(r.getChunkId(), r.getScore());
+            }
+        }
+    }
+
+    /**
+     * 调用 AI 生成回答（按当前框架 + 模式）
      */
     public String generateAnswer(String systemPrompt, String userMessage) {
         return aiProvider.chat(systemPrompt, userMessage);

@@ -8,20 +8,24 @@ import java.util.List;
 
 /**
  * Embedding 向量化服务
- * 根据 ai-mode 自动选择离线 Ollama 或在线 DashScope
+ * 根据 ai-mode 选择离线 Ollama 或在线 DashScope，根据 ai-framework 选择调用库
  */
 @Service
 @Slf4j
 public class EmbeddingService {
 
-    private final DynamicAiProvider aiProvider;
+    private final AiFrameworkRouter aiProvider;
 
-    public EmbeddingService(DynamicAiProvider aiProvider) {
+    public EmbeddingService(AiFrameworkRouter aiProvider) {
         this.aiProvider = aiProvider;
     }
 
     public String getMode() {
         return aiProvider.getMode();
+    }
+
+    public String getFramework() {
+        return aiProvider.getFramework();
     }
 
     public int getDimension() {

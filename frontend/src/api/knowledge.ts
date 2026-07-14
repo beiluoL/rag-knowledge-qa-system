@@ -35,8 +35,8 @@ export function importFromUrl(url: string, mode: string) {
 }
 
 // ── 查询 ──
-export function getDocuments(page = 0, size = 20, keyword?: string) {
-  return request.get('/knowledge/documents', { params: { page, size, keyword } })
+export function getDocuments(page = 0, size = 20, keyword?: string, status?: string) {
+  return request.get('/knowledge/documents', { params: { page, size, keyword, status } })
 }
 
 export function getDocumentDetail(id: number) {
@@ -48,7 +48,7 @@ export function getStats() {
 }
 
 // ── 编辑 ──
-export function updateDocument(id: number, data: { title?: string; tags?: string }) {
+export function updateDocument(id: number, data: { title?: string; tags?: string; description?: string }) {
   return request.put(`/knowledge/documents/${id}`, data)
 }
 

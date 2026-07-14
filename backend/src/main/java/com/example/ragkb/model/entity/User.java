@@ -25,6 +25,14 @@ public class User {
     @Column(length = 100)
     private String email;
 
+    /** 用户昵称（可选，显示优先于用户名） */
+    @Column(length = 50)
+    private String nickname;
+
+    /** 用户头像 URL（可选，支持外部链接或 base64） */
+    @Column(length = 500)
+    private String avatar;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private UserRole role;

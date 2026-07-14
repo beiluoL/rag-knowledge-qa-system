@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 
 @Repository
@@ -71,6 +72,56 @@ public class ChunkEmbeddingRepository {
         return jdbcTemplate.query(sql,
                 new Object[]{queryVector, queryVector, threshold, queryVector, topK},
                 this::mapToReferenceDTO);
+    }
+
+    /**
+     * 关键词全文搜索（基于 PostgreSQL tsvector + to_tsquery OR 分词）
+     * 用于混合检索：与向量搜索结果融合，提升关键词精确匹配能力。
+     * 将查询按词/字切分后用 OR 连接，避免 plainto_tsquery 的 AND 语义导致的召回过低。
+     *
+     * @param keyword 搜索关键词
+     * @param topK    返回最大条数
+     * @return 按相关度排序的文档片段列表
+     */
+    public List<ReferenceDTO> keywordSearch(String keyword, int topK) {
+        String tsQuery = buildOrTsQuery(keyword);
+        if (tsQuery == null) {
+            return List.of();
+        }
+        String sql = """
+            SELECT
+                c.id AS chunk_id,
+                c.content,
+                c.document_id,
+                d.title AS document_title,
+                ts_rank(to_tsvector('simple', c.content), to_tsquery('simple', ?)) AS similarity
+            FROM chunks c
+            JOIN documents d ON d.id = c.document_id
+            WHERE to_tsvector('simple', c.content) @@ to_tsquery('simple', ?)
+            ORDER BY similarity DESC
+            LIMIT ?
+        """;
+        return jdbcTemplate.query(sql,
+                new Object[]{tsQuery, tsQuery, topK},
+                this::mapToReferenceDTO);
+    }
+
+    /**
+     * 将关键词拆分为多个词元并以 OR（|）连接，构造 tsquery。
+     * 仅保留长度 >= 2 的词元，去除单引号防止 tsquery 注入。
+     * CJK 连续字符作为一个短语词元保留，拉丁/数字单独成词。
+     */
+    private String buildOrTsQuery(String keyword) {
+        if (keyword == null || keyword.isBlank()) return null;
+        String[] raw = keyword.split("[^\\p{L}\\p{N}]+");
+        List<String> terms = new ArrayList<>();
+        for (String t : raw) {
+            t = t.trim().replace("'", "");
+            if (t.isEmpty() || t.length() < 2) continue;
+            terms.add("'" + t + "'");
+        }
+        if (terms.isEmpty()) return null;
+        return String.join(" | ", terms);
     }
 
     private ReferenceDTO mapToReferenceDTO(ResultSet rs, int rowNum) throws SQLException {

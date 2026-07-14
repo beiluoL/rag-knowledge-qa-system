@@ -30,5 +30,9 @@ application-secrets.yml
 # Claude Code
 .claude/
 
+# 本地 Agent / IDE 工作目录（含个人记忆与项目笔记，禁止提交到远程）
+.workbuddy/
+.qoder/
+
 # Logs
 *.log

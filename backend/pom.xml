@@ -21,6 +21,7 @@
         <java.version>17</java.version>
         <spring-ai.version>1.0.0-M6</spring-ai.version>
         <jjwt.version>0.12.6</jjwt.version>
+        <langchain4j.version>0.36.2</langchain4j.version>
     </properties>
 
     <dependencyManagement>
@@ -79,6 +80,23 @@
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-openai-spring-boot-starter</artifactId>
+        </dependency>
+
+        <!-- LangChain4j - RAG 管道增强（查询改写、混合检索、内容聚合） -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j</artifactId>
+            <version>${langchain4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-ollama</artifactId>
+            <version>${langchain4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-open-ai</artifactId>
+            <version>${langchain4j.version}</version>
         </dependency>
 
         <!-- Apache Tika - 文档解析 -->

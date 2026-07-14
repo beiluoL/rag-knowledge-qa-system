@@ -27,6 +27,10 @@ public class Message {
     @Column(name = "references_data", columnDefinition = "TEXT")
     private String referencesData;
 
+    /** 用户反馈：like（点赞）、dislike（踩）、null（未评价） */
+    @Column(length = 10)
+    private String feedback;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

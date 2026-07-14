@@ -33,9 +33,16 @@
           <el-col :span="6"><el-statistic title="分块总数" :value="stats.chunkCount" /></el-col>
           <el-col :span="6"><el-statistic title="向量总数" :value="stats.embeddingCount" /></el-col>
         </el-row>
-        <div style="margin-bottom:12px">
+        <div style="margin-bottom:12px;display:flex;gap:12px;align-items:center">
           <el-input v-model="searchKeyword" placeholder="搜索文档标题或标签..." clearable
             :prefix-icon="Search" @input="onSearch" style="max-width:360px" />
+          <el-select v-model="statusFilter" placeholder="状态筛选" clearable size="default" style="width:140px" @change="loadDocuments">
+            <el-option label="全部" value="" />
+            <el-option label="待处理" value="PENDING" />
+            <el-option label="处理中" value="PROCESSING" />
+            <el-option label="已完成" value="COMPLETED" />
+            <el-option label="失败" value="FAILED" />
+          </el-select>
         </div>
 
         <!-- ====== 列表视图 ====== -->
@@ -176,6 +183,9 @@
           <el-form-item label="标签">
             <el-input v-model="editForm.tags" placeholder="逗号分隔，如：手机,苹果,2024款" />
           </el-form-item>
+          <el-form-item label="描述">
+            <el-input v-model="editForm.description" type="textarea" :rows="3" placeholder="文档描述（可选）" />
+          </el-form-item>
         </el-form>
         <template #footer>
           <el-button @click="editVisible=false">取消</el-button>
@@ -277,6 +287,7 @@ const viewMode = ref<'list'|'card'>('list')
 const documents = ref<DocumentItem[]>([])
 const loadingDocs = ref(false)
 const searchKeyword = ref('')
+const statusFilter = ref('')
 const selectedIds = ref<number[]>([])
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -288,7 +299,7 @@ const customChunkSize = ref(500); const customOverlap = ref(100)
 
 // 编辑
 const editVisible = ref(false); const saving = ref(false)
-const editForm = reactive<{id: number|null; title: string; tags: string}>({id:null,title:'',tags:''})
+const editForm = reactive<{id: number|null; title: string; tags: string; description: string}>({id:null,title:'',tags:'',description:''})
 
 // 详情
 const detailVisible = ref(false); const detailDoc = ref<DocumentItem|null>(null)
@@ -317,7 +328,8 @@ async function loadDocuments(){
   loadingDocs.value = true
   try {
     const kw = searchKeyword.value || undefined
-    const [docsRes, statsRes] = await Promise.all([getDocuments(0, 50, kw), getStats()])
+    const st = statusFilter.value || undefined
+    const [docsRes, statsRes] = await Promise.all([getDocuments(0, 50, kw, st), getStats()])
     documents.value = docsRes.data.content
     Object.assign(stats, statsRes.data)
   } finally { loadingDocs.value = false }
@@ -363,11 +375,11 @@ async function handlePasteUpload(){
 }
 
 // ── 编辑 ──
-function openEditDialog(row: DocumentItem){ editForm.id=row.id; editForm.title=row.title; editForm.tags=row.tags||''; editVisible.value=true }
+function openEditDialog(row: DocumentItem){ editForm.id=row.id; editForm.title=row.title; editForm.tags=row.tags||''; editForm.description=(row as any).description||''; editVisible.value=true }
 async function handleSaveEdit(){
   if(!editForm.id) return
   saving.value = true
-  try { await updateDocument(editForm.id, {title:editForm.title,tags:editForm.tags}); ElMessage.success('已更新'); editVisible.value = false; await loadDocuments() }
+  try { await updateDocument(editForm.id, {title:editForm.title,tags:editForm.tags,description:editForm.description}); ElMessage.success('已更新'); editVisible.value = false; await loadDocuments() }
   catch(e:any){ ElMessage.error('保存失败') }
   finally { saving.value = false }
 }

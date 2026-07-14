@@ -27,6 +27,11 @@ public class Conversation {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    /** 置顶标记：true 表示置顶，会话列表中优先显示 */
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean pinned = false;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

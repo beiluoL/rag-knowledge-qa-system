@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,10 +38,10 @@ public class ConversationService {
     }
 
     /**
-     * 获取用户的会话列表
+     * 获取用户的会话列表（置顶优先，按更新时间倒序）
      */
     public List<Conversation> getUserConversations(Long userId) {
-        return conversationRepository.findByUserIdOrderByUpdatedAtDesc(userId);
+        return conversationRepository.findByUserIdOrderByPinnedDescUpdatedAtDesc(userId);
     }
 
     /**
@@ -141,6 +142,82 @@ public class ConversationService {
         conversationRepository.deleteById(conversationId);
     }
 
+    /**
+     * 消息反馈（点赞/踩）
+     * 仅允许对 ASSISTANT 角色的消息进行反馈
+     *
+     * @param messageId 消息 ID
+     * @param feedback  反馈值：like、dislike 或 null（取消反馈）
+     */
+    public void feedbackMessage(Long messageId, String feedback) {
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new BusinessException("消息不存在"));
+        if (!"ASSISTANT".equals(message.getRole())) {
+            throw new BusinessException("只能对 AI 回答进行反馈");
+        }
+        // 点击同一个反馈值则取消
+        if (feedback != null && feedback.equals(message.getFeedback())) {
+            message.setFeedback(null);
+        } else {
+            message.setFeedback(feedback);
+        }
+        messageRepository.save(message);
+    }
+
+    /**
+     * 搜索用户的会话（按消息内容全文搜索）
+     *
+     * @param userId  用户 ID
+     * @param keyword 搜索关键词
+     * @return 匹配的会话列表
+     */
+    public List<Conversation> searchConversations(Long userId, String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return conversationRepository.findByUserIdOrderByPinnedDescUpdatedAtDesc(userId);
+        }
+        return conversationRepository.searchByKeyword(userId, keyword);
+    }
+
+    /**
+     * 切换会话置顶状态
+     * 点击已置顶的会话则取消置顶，点击未置顶的则置顶
+     *
+     * @param conversationId 会话 ID
+     * @return 更新后的会话
+     */
+    public Conversation togglePin(Long conversationId) {
+        Conversation conv = getConversation(conversationId);
+        conv.setPinned(!Boolean.TRUE.equals(conv.getPinned()));
+        return conversationRepository.save(conv);
+    }
+
+    /**
+     * 导出会话内容为 Markdown 格式
+     *
+     * @param conversationId 会话 ID
+     * @return Markdown 格式的会话文本
+     */
+    public String exportConversation(Long conversationId) {
+        Conversation conv = getConversation(conversationId);
+        List<Message> messages = messageRepository
+                .findByConversationIdOrderByCreatedAtAsc(conversationId);
+
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+        StringBuilder sb = new StringBuilder();
+        sb.append("# ").append(conv.getTitle()).append("\n\n");
+        sb.append("导出时间: ").append(java.time.LocalDateTime.now().format(fmt)).append("\n\n");
+        sb.append("---\n\n");
+
+        for (Message msg : messages) {
+            String role = "USER".equals(msg.getRole()) ? "**用户**" : "**AI 助手**";
+            String time = msg.getCreatedAt() != null ? msg.getCreatedAt().format(fmt) : "";
+            sb.append("### ").append(role).append(" ").append(time).append("\n\n");
+            sb.append(msg.getContent()).append("\n\n");
+        }
+
+        return sb.toString();
+    }
+
     private MessageDTO convertToDTO(Message message) {
         List<ReferenceDTO> refs = new ArrayList<>();
         if (message.getReferencesData() != null) {
@@ -157,6 +234,7 @@ public class ConversationService {
                 .role(message.getRole())
                 .content(message.getContent())
                 .references(refs.isEmpty() ? null : refs)
+                .feedback(message.getFeedback())
                 .createdAt(message.getCreatedAt())
                 .build();
     }

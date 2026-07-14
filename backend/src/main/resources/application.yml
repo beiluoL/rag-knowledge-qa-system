@@ -56,6 +56,8 @@ spring:
 app:
   # AI 模式：offline（Ollama 本地）/ online（阿里云百炼）
   ai-mode: offline
+  # AI 框架：spring-ai（Spring AI）/ langchain4j（LangChain4j），可在前端切换
+  ai-framework: spring-ai
 
   # 阿里云百炼 DashScope 在线 API 配置
   dashscope:
@@ -74,6 +76,12 @@ app:
     top-k: 5
     similarity-threshold: 0.5
     max-history-rounds: 3
+    # 混合检索：向量语义 + 关键词全文，RRF 融合（true 时启用）
+    hybrid-enabled: true
+    # RRF 融合常数 k（默认 60）
+    rrf-k: 60
+    # 查询改写：检索前用 LLM 优化查询（true 时启用，失败自动降级为原问题）
+    query-rewrite-enabled: true
 
   storage:
     upload-dir: ./data/documents

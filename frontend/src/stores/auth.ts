@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { login as loginApi, register as registerApi, type LoginParams, type RegisterParams } from '@/api/auth'
+import { login as loginApi, register as registerApi, logout as logoutApi, type LoginParams, type RegisterParams } from '@/api/auth'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<any>(null)
@@ -30,7 +30,16 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('refreshToken', data.refreshToken)
   }
 
-  function logout() {
+  /**
+   * 用户登出：先通知后端将 token 加入黑名单，再清除本地存储
+   */
+  async function logout() {
+    try {
+      // 通知后端将当前 access_token 加入黑名单
+      await logoutApi()
+    } catch {
+      // 即使后端调用失败也清除本地存储，保证用户能退出
+    }
     token.value = ''
     user.value = null
     localStorage.clear()

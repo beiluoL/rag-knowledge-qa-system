@@ -16,5 +16,7 @@ public class MessageDTO {
     private String role;
     private String content;
     private List<ReferenceDTO> references;
+    /** 用户反馈：like/dislike/null */
+    private String feedback;
     private LocalDateTime createdAt;
 }

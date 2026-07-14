@@ -9,6 +9,13 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
+/**
+ * JWT Token 提供者
+ * <p>
+ * 负责 access_token 和 refresh_token 的生成、验证和解析。
+ * 采用 HMAC-SHA 签名，access_key 和 refresh_key 基于同一 secret 派生。
+ * </p>
+ */
 @Component
 public class JwtTokenProvider {
 
@@ -27,6 +34,14 @@ public class JwtTokenProvider {
         this.refreshTokenExpiration = refreshTokenExpiration;
     }
 
+    /**
+     * 生成访问 Token（含用户 ID、用户名、角色）
+     *
+     * @param userId   用户 ID
+     * @param username 用户名
+     * @param role     用户角色（ADMIN/USER）
+     * @return JWT access_token 字符串
+     */
     public String generateAccessToken(Long userId, String username, String role) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + accessTokenExpiration);
@@ -41,6 +56,12 @@ public class JwtTokenProvider {
                 .compact();
     }
 
+    /**
+     * 生成刷新 Token（仅含用户 ID，用于无感续期）
+     *
+     * @param userId 用户 ID
+     * @return JWT refresh_token 字符串
+     */
     public String generateRefreshToken(Long userId) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + refreshTokenExpiration);
@@ -53,6 +74,12 @@ public class JwtTokenProvider {
                 .compact();
     }
 
+    /**
+     * 验证 access_token 签名是否有效
+     *
+     * @param token JWT 字符串
+     * @return true 表示签名有效
+     */
     public boolean validateAccessToken(String token) {
         try {
             Jwts.parser().verifyWith(accessTokenKey).build().parseSignedClaims(token);
@@ -62,6 +89,7 @@ public class JwtTokenProvider {
         }
     }
 
+    /** 从 access_token 中解析用户 ID */
     public Long getUserIdFromAccessToken(String token) {
         Claims claims = Jwts.parser()
                 .verifyWith(accessTokenKey)
@@ -71,6 +99,7 @@ public class JwtTokenProvider {
         return Long.parseLong(claims.getSubject());
     }
 
+    /** 从 access_token 中解析用户名 */
     public String getUsernameFromAccessToken(String token) {
         Claims claims = Jwts.parser()
                 .verifyWith(accessTokenKey)
@@ -80,6 +109,7 @@ public class JwtTokenProvider {
         return claims.get("username", String.class);
     }
 
+    /** 从 access_token 中解析用户角色 */
     public String getRoleFromAccessToken(String token) {
         Claims claims = Jwts.parser()
                 .verifyWith(accessTokenKey)
@@ -89,6 +119,23 @@ public class JwtTokenProvider {
         return claims.get("role", String.class);
     }
 
+    /**
+     * 获取 access_token 的过期时间戳（毫秒）
+     * 用于 Token 黑名单服务，确定黑名单条目的自动清理时间
+     *
+     * @param token JWT access_token 字符串
+     * @return 过期时间戳（毫秒）
+     */
+    public long getExpiryFromAccessToken(String token) {
+        Claims claims = Jwts.parser()
+                .verifyWith(accessTokenKey)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+        return claims.getExpiration().getTime();
+    }
+
+    /** 从 refresh_token 中解析用户 ID */
     public Long getUserIdFromRefreshToken(String token) {
         Claims claims = Jwts.parser()
                 .verifyWith(refreshTokenKey)
@@ -98,6 +145,12 @@ public class JwtTokenProvider {
         return Long.parseLong(claims.getSubject());
     }
 
+    /**
+     * 验证 refresh_token 签名是否有效
+     *
+     * @param token JWT 字符串
+     * @return true 表示签名有效
+     */
     public boolean validateRefreshToken(String token) {
         try {
             Jwts.parser().verifyWith(refreshTokenKey).build().parseSignedClaims(token);

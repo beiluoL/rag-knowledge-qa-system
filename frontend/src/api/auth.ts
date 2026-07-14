@@ -34,3 +34,10 @@ export function register(params: RegisterParams) {
 export function refreshToken(token: string) {
   return request.post<LoginResult>('/auth/refresh', { refreshToken: token })
 }
+
+/**
+ * 用户登出，将当前 access_token 加入后端黑名单
+ */
+export function logout() {
+  return request.post('/auth/logout')
+}

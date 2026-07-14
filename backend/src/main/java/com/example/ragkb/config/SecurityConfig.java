@@ -19,6 +19,13 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * Spring Security 配置
+ * <p>
+ * 配置无状态 JWT 认证、CORS 跨域、接口权限规则。
+ * 权限分层：匿名（认证接口）、USER+（问答/用户）、ADMIN（知识库/用户管理）。
+ * </p>
+ */
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
@@ -26,6 +33,9 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
 
+    /**
+     * 配置安全过滤链：CORS + 无状态会话 + JWT 过滤器 + 接口权限规则
+     */
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -40,6 +50,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 // 知识库管理 - 仅管理员
                 .requestMatchers("/api/knowledge/**").hasRole("ADMIN")
+                // 管理员用户管理 - 仅管理员
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 // 问答和会话 - 需要登录
                 .requestMatchers("/api/chat/**").authenticated()
                 // AI 模式查询 - 需要登录
@@ -54,6 +66,7 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /** 配置 CORS 跨域策略：允许所有来源（开发环境），生产环境应限制具体域名 */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
@@ -68,11 +81,13 @@ public class SecurityConfig {
         return source;
     }
 
+    /** 密码编码器：BCrypt 哈希 */
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
+    /** 认证管理器（Spring Security 内部使用） */
     @Bean
     public AuthenticationManager authenticationManager(
             AuthenticationConfiguration authConfig) throws Exception {

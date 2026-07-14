@@ -41,6 +41,14 @@ public class Document {
     @Column(length = 500)
     private String tags;
 
+    /** 文档描述信息（管理员添加的补充说明） */
+    @Column(length = 1000)
+    private String description;
+
+    /** AI 模式标识：offline（离线 Ollama）或 online（在线 DashScope），决定向量维度 */
+    @Column(name = "ai_mode", length = 10)
+    private String aiMode;
+
     @Column(name = "uploaded_by")
     private Long uploadedBy;
 

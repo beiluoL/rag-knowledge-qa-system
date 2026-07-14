@@ -24,4 +24,7 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
     // 搜索：按标题或标签关键词
     Page<Document> findByTitleContainingIgnoreCaseOrTagsContainingIgnoreCase(
             String titleKeyword, String tagsKeyword, Pageable pageable);
+
+    /** 按状态筛选文档（分页） */
+    Page<Document> findByStatusOrderByCreatedAtDesc(String status, Pageable pageable);
 }

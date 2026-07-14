@@ -173,9 +173,15 @@ public class DocumentService {
     }
 
     /**
-     * 获取文档列表（分页）
+     * 获取文档列表（分页，支持状态筛选）
+     *
+     * @param pageable 分页参数
+     * @param status   文档状态筛选（COMPLETED/PROCESSING/FAILED/PENDING），null 表示不筛选
      */
-    public Page<Document> getDocuments(Pageable pageable) {
+    public Page<Document> getDocuments(Pageable pageable, String status) {
+        if (status != null && !status.isBlank()) {
+            return documentRepository.findByStatusOrderByCreatedAtDesc(status, pageable);
+        }
         return documentRepository.findAllByOrderByCreatedAtDesc(pageable);
     }
 
@@ -226,14 +232,15 @@ public class DocumentService {
     }
 
     /**
-     * 更新文档信息（标题、标签）
+     * 更新文档信息（标题、标签、描述）
      */
     @Transactional
-    public Document updateDocument(Long id, String title, String tags) {
+    public Document updateDocument(Long id, String title, String tags, String description) {
         Document doc = documentRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("文档不存在"));
         if (title != null && !title.isBlank()) doc.setTitle(title);
         if (tags != null) doc.setTags(tags);
+        if (description != null) doc.setDescription(description);
         return documentRepository.save(doc);
     }
 
@@ -242,7 +249,7 @@ public class DocumentService {
      */
     public Page<Document> searchDocuments(String keyword, Pageable pageable) {
         if (keyword == null || keyword.isBlank()) {
-            return getDocuments(pageable);
+            return getDocuments(pageable, null);
         }
         return documentRepository.findByTitleContainingIgnoreCaseOrTagsContainingIgnoreCase(
                 keyword, keyword, pageable);

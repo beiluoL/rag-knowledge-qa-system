@@ -12,10 +12,20 @@
         <span class="mode-text">{{ aiMode === 'online' ? '在线 · 阿里云百炼' : '离线 · Ollama 本地' }}</span>
         <el-icon class="mode-switch-icon"><Switch /></el-icon>
       </div>
+      <!-- AI 框架切换 -->
+      <div class="mode-indicator framework-indicator" :class="aiFramework" @click="handleToggleFramework" title="点击切换 AI 框架（Spring AI / LangChain4j）">
+        <span class="mode-dot" :class="aiFramework === 'langchain4j' ? 'lc4j' : 'sa'"></span>
+        <span class="mode-text">{{ aiFramework === 'langchain4j' ? 'LangChain4j' : 'Spring AI' }}</span>
+        <el-icon class="mode-switch-icon"><Switch /></el-icon>
+      </div>
       <!-- RAG 可视化开关 -->
       <div class="rag-toggle" v-if="authStore.username">
         <span class="rag-toggle-label">RAG 过程可视化</span>
         <el-switch v-model="ragStepsVisible" size="small" />
+      </div>
+      <!-- 搜索框 -->
+      <div class="search-box" v-if="authStore.username">
+        <el-input v-model="searchKeyword" placeholder="搜索会话内容..." :prefix-icon="Search" clearable size="small" @clear="handleSearch" @keyup.enter="handleSearch" />
       </div>
       <div class="conversation-list">
         <div
@@ -25,13 +35,18 @@
           :class="{ active: conv.id === currentConversationId }"
           @click="selectConversation(conv.id)"
         >
-          <div class="conv-title">{{ conv.title }}</div>
+          <div class="conv-title">
+            <span v-if="conv.pinned" class="pin-icon" title="已置顶">📌</span>
+            {{ conv.title }}
+          </div>
           <div class="conv-time">{{ formatDate(conv.updatedAt) }}</div>
           <el-dropdown trigger="click" @command="(cmd: string) => handleConvAction(cmd, conv)">
             <el-icon class="conv-more"><MoreFilled /></el-icon>
             <template #dropdown>
               <el-dropdown-menu>
+                <el-dropdown-item command="pin">{{ conv.pinned ? '取消置顶' : '置顶' }}</el-dropdown-item>
                 <el-dropdown-item command="rename">重命名</el-dropdown-item>
+                <el-dropdown-item command="export">导出 Markdown</el-dropdown-item>
                 <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -50,6 +65,7 @@
             <el-dropdown-menu>
               <el-dropdown-item command="profile">个人中心</el-dropdown-item>
               <el-dropdown-item v-if="authStore.isAdmin" command="admin">知识库管理</el-dropdown-item>
+              <el-dropdown-item v-if="authStore.isAdmin" command="dashboard">系统管理</el-dropdown-item>
               <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -89,6 +105,18 @@
                   </div>
                 </el-popover>
               </div>
+            </div>
+            <!-- 消息反馈按钮（仅 AI 回答） -->
+            <div v-if="msg.role === 'ASSISTANT'" class="feedback-bar">
+              <el-button text size="small" :type="msg.feedback === 'like' ? 'success' : ''" @click="handleFeedback(msg, 'like')">
+                👍 {{ msg.feedback === 'like' ? '已赞' : '有用' }}
+              </el-button>
+              <el-button text size="small" :type="msg.feedback === 'dislike' ? 'danger' : ''" @click="handleFeedback(msg, 'dislike')">
+                👎 {{ msg.feedback === 'dislike' ? '已踩' : '无用' }}
+              </el-button>
+              <el-button text size="small" @click="handleCopyMessage(msg)">
+                📋 复制
+              </el-button>
             </div>
           </div>
         </div>
@@ -182,11 +210,13 @@
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Promotion, ArrowDown } from '@element-plus/icons-vue'
+import { Plus, Promotion, ArrowDown, Search, Download } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { getConversations, getConversationMessages, sendMessage as sendChatMessage,
-  renameConversation, deleteConversation, type Conversation, type Message, type Reference } from '@/api/chat'
-import { getAiMode, switchAiMode } from '@/api/aimode'
+  renameConversation, deleteConversation, feedbackMessage, searchConversations, exportConversation,
+  togglePinConversation,
+  type Conversation, type Message, type Reference } from '@/api/chat'
+import { getAiMode, switchAiMode, getAiFramework, switchAiFramework } from '@/api/aimode'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
 
@@ -203,6 +233,8 @@ const inputQuestion = ref('')
 const isStreaming = ref(false)
 const streamingContent = ref('')
 const aiMode = ref('offline')
+const aiFramework = ref('spring-ai')
+const searchKeyword = ref('')
 
 // RAG 过程可视化
 const ragStepsVisible = ref(true) // 开关
@@ -271,6 +303,18 @@ async function handleToggleMode() {
     const { data } = await switchAiMode(targetMode)
     aiMode.value = data.mode
     ElMessage.success(data.message || `已切换为 ${data.mode} 模式`)
+  } catch (e: any) {
+    ElMessage.error('切换失败: ' + (e.response?.data?.message || e.message))
+  }
+}
+
+// 切换 AI 框架（Spring AI / LangChain4j）
+async function handleToggleFramework() {
+  const target = aiFramework.value === 'langchain4j' ? 'spring-ai' : 'langchain4j'
+  try {
+    const { data } = await switchAiFramework(target)
+    aiFramework.value = data.framework
+    ElMessage.success(data.message || `已切换为 ${data.framework} 框架`)
   } catch (e: any) {
     ElMessage.error('切换失败: ' + (e.response?.data?.message || e.message))
   }
@@ -413,6 +457,59 @@ function scrollToBottom() {
   }
 }
 
+// 搜索会话
+async function handleSearch() {
+  const keyword = searchKeyword.value.trim()
+  try {
+    const { data } = await searchConversations(keyword || undefined)
+    conversations.value = data
+  } catch (e) {
+    console.error('搜索失败', e)
+  }
+}
+
+// 消息反馈（点赞/踩）
+async function handleFeedback(msg: Message, feedback: string) {
+  // 点击相同反馈值则取消
+  const newFeedback = msg.feedback === feedback ? '' : feedback
+  try {
+    await feedbackMessage(msg.id, newFeedback)
+    msg.feedback = newFeedback || undefined
+  } catch (e) {
+    ElMessage.error('反馈失败')
+  }
+}
+
+/**
+ * 复制消息内容到剪贴板
+ * @param msg 要复制的消息
+ */
+function handleCopyMessage(msg: Message) {
+  navigator.clipboard.writeText(msg.content).then(() => {
+    ElMessage.success('已复制到剪贴板')
+  }).catch(() => {
+    ElMessage.error('复制失败')
+  })
+}
+
+// 导出会话为 Markdown
+async function handleExport(conv: Conversation) {
+  try {
+    const { data } = await exportConversation(conv.id)
+    // 创建 Blob 下载
+    const blob = new Blob([data as any], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${conv.title || '会话导出'}.md`
+    link.click()
+    URL.revokeObjectURL(url)
+    ElMessage.success('导出成功')
+  } catch (e) {
+    ElMessage.error('导出失败')
+  }
+}
+
 // 会话操作
 async function handleConvAction(cmd: string, conv: Conversation) {
   if (cmd === 'delete') {
@@ -434,6 +531,17 @@ async function handleConvAction(cmd: string, conv: Conversation) {
         ElMessage.success('已重命名')
       }
     } catch { /* 取消 */ }
+  } else if (cmd === 'export') {
+    await handleExport(conv)
+  } else if (cmd === 'pin') {
+    try {
+      await togglePinConversation(conv.id)
+      conv.pinned = !conv.pinned
+      await loadConversations()
+      ElMessage.success(conv.pinned ? '已置顶' : '已取消置顶')
+    } catch (e) {
+      ElMessage.error('操作失败')
+    }
   }
 }
 
@@ -441,6 +549,7 @@ async function handleConvAction(cmd: string, conv: Conversation) {
 function handleUserAction(cmd: string) {
   if (cmd === 'profile') router.push('/profile')
   else if (cmd === 'admin') router.push('/admin/knowledge')
+  else if (cmd === 'dashboard') router.push('/admin/dashboard')
   else if (cmd === 'logout') {
     authStore.logout()
     router.push('/login')
@@ -452,6 +561,10 @@ onMounted(async () => {
   try {
     const { data } = await getAiMode()
     aiMode.value = data.mode
+  } catch { /* ignore */ }
+  try {
+    const { data } = await getAiFramework()
+    aiFramework.value = data.framework
   } catch { /* ignore */ }
   await loadConversations()
   const convId = route.params.conversationId
@@ -505,6 +618,9 @@ onMounted(async () => {
 .mode-indicator:hover { background: #e8eaed; }
 .mode-text { flex: 1; }
 .mode-switch-icon { color: #909399; font-size: 14px; }
+.mode-dot.lc4j { background: #e6a23c; box-shadow: 0 0 4px #e6a23c; }
+.mode-dot.sa { background: #409eff; box-shadow: 0 0 4px #409eff; }
+.framework-indicator { margin-top: 4px; }
 .conversation-list { flex: 1; overflow-y: auto; padding: 8px; }
 .conv-item {
   padding: 10px 12px;
@@ -739,4 +855,28 @@ onMounted(async () => {
 }
 .step-active .t-detail { color: #667eea; }
 .step-finished .t-detail { color: #68d391; }
+
+/* ── 搜索框 ── */
+.search-box {
+  padding: 8px 12px;
+  border-bottom: 1px solid #ebeef5;
+}
+
+/* ── 消息反馈按钮 ── */
+.feedback-bar {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+.feedback-bar:hover {
+  opacity: 1;
+}
+
+/* ── 置顶图标 ── */
+.pin-icon {
+  font-size: 11px;
+  margin-right: 2px;
+}
 </style>
