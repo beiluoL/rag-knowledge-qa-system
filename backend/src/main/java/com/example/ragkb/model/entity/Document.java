@@ -38,6 +38,9 @@ public class Document {
     @Column(name = "chunk_count")
     private Integer chunkCount;
 
+    @Column(length = 500)
+    private String tags;
+
     @Column(name = "uploaded_by")
     private Long uploadedBy;
 

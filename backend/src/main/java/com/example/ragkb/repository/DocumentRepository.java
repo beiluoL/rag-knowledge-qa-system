@@ -20,4 +20,8 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
 
     @Query("SELECT COALESCE(SUM(d.chunkCount), 0) FROM Document d")
     long sumChunkCount();
+
+    // 搜索：按标题或标签关键词
+    Page<Document> findByTitleContainingIgnoreCaseOrTagsContainingIgnoreCase(
+            String titleKeyword, String tagsKeyword, Pageable pageable);
 }

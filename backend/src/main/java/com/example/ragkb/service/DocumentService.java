@@ -39,6 +39,8 @@ public class DocumentService {
     private final ChunkEmbeddingRepository embeddingRepository;
     private final EmbeddingService embeddingService;
     private final TextSplitter textSplitter;
+    private final DynamicAiProvider aiProvider;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     @Value("${app.storage.upload-dir}")
     private String uploadDir;
@@ -221,6 +223,177 @@ public class DocumentService {
                 "chunkCount", documentRepository.sumChunkCount(),
                 "embeddingCount", embeddingRepository.count()
         );
+    }
+
+    /**
+     * 更新文档信息（标题、标签）
+     */
+    @Transactional
+    public Document updateDocument(Long id, String title, String tags) {
+        Document doc = documentRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("文档不存在"));
+        if (title != null && !title.isBlank()) doc.setTitle(title);
+        if (tags != null) doc.setTags(tags);
+        return documentRepository.save(doc);
+    }
+
+    /**
+     * 搜索文档（按标题或标签关键词）
+     */
+    public Page<Document> searchDocuments(String keyword, Pageable pageable) {
+        if (keyword == null || keyword.isBlank()) {
+            return getDocuments(pageable);
+        }
+        return documentRepository.findByTitleContainingIgnoreCaseOrTagsContainingIgnoreCase(
+                keyword, keyword, pageable);
+    }
+
+    /**
+     * 批量删除文档
+     */
+    @Transactional
+    public Map<String, Object> batchDelete(List<Long> ids) {
+        int deleted = 0;
+        for (Long id : ids) {
+            try {
+                deleteDocument(id);
+                deleted++;
+            } catch (Exception e) {
+                log.warn("删除文档失败: id={}", id, e);
+            }
+        }
+        return Map.of("total", ids.size(), "deleted", deleted);
+    }
+
+    /**
+     * 清空所有文档
+     */
+    @Transactional
+    public Map<String, Object> clearAll() {
+        List<Document> allDocs = documentRepository.findAll();
+        int count = allDocs.size();
+        for (Document doc : allDocs) {
+            try {
+                embeddingRepository.deleteByDocumentId(doc.getId());
+                chunkRepository.deleteByDocumentId(doc.getId());
+            } catch (Exception e) {
+                log.warn("清理文档数据失败: id={}", doc.getId());
+            }
+        }
+        documentRepository.deleteAll();
+        return Map.of("deleted", count);
+    }
+
+    /**
+     * 更新分块内容
+     */
+    @Transactional
+    public Chunk updateChunk(Long chunkId, String content) {
+        Chunk chunk = chunkRepository.findById(chunkId)
+                .orElseThrow(() -> new BusinessException("分块不存在"));
+        chunk.setContent(content);
+        chunk.setTokenCount(textSplitter.estimateTokenCount(content));
+        return chunkRepository.save(chunk);
+    }
+
+    /**
+     * 删除单个分块
+     */
+    @Transactional
+    public void deleteChunk(Long chunkId) {
+        Chunk chunk = chunkRepository.findById(chunkId)
+                .orElseThrow(() -> new BusinessException("分块不存在"));
+        // 更新文档分块计数
+        Document doc = documentRepository.findById(chunk.getDocumentId()).orElse(null);
+        if (doc != null) {
+            doc.setChunkCount(Math.max(0, (doc.getChunkCount() != null ? doc.getChunkCount() : 0) - 1));
+            documentRepository.save(doc);
+        }
+        chunkRepository.delete(chunk);
+    }
+
+    /**
+     * 导出文档内容（拼接所有分块）
+     */
+    public String exportDocumentContent(Long documentId) {
+        List<Chunk> chunks = chunkRepository.findByDocumentIdOrderByChunkIndexAsc(documentId);
+        StringBuilder sb = new StringBuilder();
+        for (Chunk c : chunks) {
+            sb.append(c.getContent()).append("\n\n");
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 导出知识库数据
+     */
+    public List<Map<String, Object>> exportAll() {
+        List<Document> docs = documentRepository.findAll();
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Document doc : docs) {
+            List<Chunk> chunks = chunkRepository.findByDocumentIdOrderByChunkIndexAsc(doc.getId());
+            List<Map<String, Object>> chunkList = chunks.stream().map(c -> Map.<String, Object>of(
+                    "chunkIndex", c.getChunkIndex(),
+                    "content", c.getContent(),
+                    "tokenCount", c.getTokenCount()
+            )).toList();
+
+            result.add(Map.of(
+                    "id", doc.getId(),
+                    "title", doc.getTitle(),
+                    "fileType", doc.getFileType(),
+                    "tags", doc.getTags() != null ? doc.getTags() : "",
+                    "status", doc.getStatus().name(),
+                    "chunkCount", doc.getChunkCount(),
+                    "createdAt", doc.getCreatedAt().toString(),
+                    "chunks", chunkList
+            ));
+        }
+        return result;
+    }
+
+    /**
+     * 上传文档（支持自定义切分参数）
+     */
+    @Transactional
+    public Document uploadDocument(MultipartFile file, Long userId, Integer customChunkSize, Integer customOverlap) {
+        Document doc = uploadDocument(file, userId);
+        // 暂存自定义参数，异步处理时使用
+        if (customChunkSize != null) {
+            chunkSize = customChunkSize;
+        }
+        if (customOverlap != null) {
+            chunkOverlap = customOverlap;
+        }
+        return doc;
+    }
+
+    /**
+     * 获取文档分块（含向量状态）
+     */
+    public List<Map<String, Object>> getDocumentChunksWithStatus(Long documentId) {
+        List<Chunk> chunks = chunkRepository.findByDocumentIdOrderByChunkIndexAsc(documentId);
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Chunk c : chunks) {
+            boolean hasEmbedding = false;
+            try {
+                String table = "offline".equals(aiProvider.getMode())
+                        ? "chunk_embeddings" : "chunk_embeddings_online";
+                Long count = jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM " + table + " WHERE chunk_id = ?",
+                        Long.class, c.getId());
+                hasEmbedding = count != null && count > 0;
+            } catch (Exception ignored) {}
+
+            result.add(Map.of(
+                    "id", c.getId(),
+                    "chunkIndex", c.getChunkIndex(),
+                    "content", c.getContent(),
+                    "tokenCount", c.getTokenCount(),
+                    "hasEmbedding", hasEmbedding
+            ));
+        }
+        return result;
     }
 
     /**
