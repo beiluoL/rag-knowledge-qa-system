@@ -85,7 +85,7 @@ public class RAGService {
     }
 
     /**
-     * 动态构建系统提示词：按知识库领域注入，去掉硬编码的"电商"限定。
+     * 动态构建系统提示词：按知识库领域动态注入角色与领域说明，不限定具体行业。
      */
     private String buildSystemPrompt(Long knowledgeBaseId) {
         String domain = "通用知识库";

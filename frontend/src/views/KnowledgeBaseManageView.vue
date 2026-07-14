@@ -159,7 +159,7 @@ const categories = ref<KbCategory[]>([])
 const activeCategory = ref<number | null>(null)
 const kbStats = ref<Record<number, number>>({})
 
-const PRESET_CATS = ['技术文档', '产品/电商手册', '法律法规', '教育培训', '医疗健康', '编程与开发']
+const PRESET_CATS = ['技术文档', '产品手册', '法律法规', '教育培训', '医疗健康', '编程与开发']
 function isPresetCategory(name: string) { return PRESET_CATS.includes(name) }
 
 const displayTree = computed(() => {
@@ -235,7 +235,7 @@ function categoryIcon(name?: string) {
   const map: Record<string, any> = {
     '编程与开发': Code,
     '技术文档': BookText,
-    '产品/电商手册': Package,
+    '产品手册': Package,
     '法律法规': Scale,
     '教育培训': GraduationCap,
     '医疗健康': HeartPulse
