@@ -36,6 +36,7 @@ public class LearningService {
     private final KnowledgeBaseRepository knowledgeBaseRepository;
     private final DocumentRepository documentRepository;
     private final ChunkRepository chunkRepository;
+    private final KnowledgeCardRepository knowledgeCardRepository;
     private final KnowledgeBaseService knowledgeBaseService;
 
     private static final int XP_PER_CARD = 10;
@@ -222,39 +223,28 @@ public class LearningService {
         }).toList();
     }
 
-    // ═══════════════ 学习卡片（从知识库 chunks 生成）═══════════════
+    // ═══════════════ 学习卡片（统一从 knowledge_cards 表读取）═══════════════
 
     public List<Map<String, Object>> studyCards(Long knowledgeBaseId, String mode) {
-        // 解析自身 + 全部后代知识库（选父库时也能学习其下所有子库）
         List<Long> kbIds = knowledgeBaseService.getDescendantIds(knowledgeBaseId);
-        List<Document> docs = documentRepository.findByKnowledgeBaseIdIn(kbIds);
-        List<Map<String, Object>> cards = new ArrayList<>();
+        List<KnowledgeCard> cards = knowledgeCardRepository.findByKnowledgeBaseIdIn(kbIds);
+        if (cards.isEmpty()) {
+            // fallback: 如果知识库没有关联卡片，尝试获取该用户的所有卡片
+            // (KnowledgeCardView 创建的卡片可能未关联KB)
+            return List.of();
+        }
+        List<Map<String, Object>> result = new ArrayList<>();
         int idx = 0;
-        for (Document d : docs) {
-            List<Chunk> chunks = chunkRepository.findByDocumentIdOrderByChunkIndexAsc(d.getId());
-            for (Chunk c : chunks) {
-                String content = c.getContent();
-                if (content == null || content.isBlank()) continue;
-                idx++;
-                cards.add(Map.of(
-                        "id", idx,
-                        "documentId", d.getId(),
-                        "documentTitle", d.getTitle(),
-                        "front", makeFront(content, mode),
-                        "back", content));
-            }
+        for (KnowledgeCard c : cards) {
+            idx++;
+            result.add(Map.of(
+                    "id", c.getId(),
+                    "documentId", 0,  // 不再依赖文档
+                    "documentTitle", c.getTitle(),
+                    "front", c.getFront() != null ? c.getFront() : c.getTitle(),
+                    "back", c.getBack()));
         }
-        return cards;
-    }
-
-    private String makeFront(String content, String mode) {
-        String firstLine = content.lines().findFirst().orElse(content).trim();
-        if ("list".equals(mode)) {
-            return firstLine.length() > 80 ? firstLine.substring(0, 80) + "…" : firstLine;
-        }
-        // 闪卡 / 刷卡 / 闯关：以片段作为"问题面"，完整内容作为"答案面"
-        String prompt = firstLine.length() > 50 ? firstLine.substring(0, 50) + "…" : firstLine;
-        return "请复述 / 理解：" + prompt;
+        return result;
     }
 
     private LocalDateTime cycleDueAt(String cycle) {

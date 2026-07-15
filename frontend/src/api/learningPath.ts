@@ -61,6 +61,9 @@ export function generateLearningPath(data: { knowledgeBaseId: number; title?: st
 }
 
 export function getLearningPathDetail(id: number) {
+  if (!Number.isInteger(id) || id <= 0) {
+    return Promise.reject(new Error('invalid learning path id'))
+  }
   return request.get<LearningPathDetail>(`/learning/paths/${id}`)
 }
 
@@ -70,4 +73,21 @@ export function updateNodeProgress(id: number, nodeId: number, status: NodeStatu
 
 export function deleteLearningPath(id: number) {
   return request.delete(`/learning/paths/${id}`)
+}
+
+/** 拖拽排序节点 */
+export function reorderNodes(pathId: number, orders: { id: number; orderIndex: number }[]) {
+  return request.put(`/learning/paths/${pathId}/nodes/reorder`, orders)
+}
+
+/** 节点详情（含文档内容） */
+export interface NodeDetail {
+  id: number; title: string; description?: string; orderIndex: number; nodeType: string
+  ref?: { documentId?: number; title?: string }
+  document?: { id: number; title: string; fileType: string; status: string }
+  chunks?: { index: number; content: string }[]
+}
+
+export function getNodeDetail(pathId: number, nodeId: number) {
+  return request.get<NodeDetail>(`/learning/paths/${pathId}/nodes/${nodeId}/detail`)
 }

@@ -94,11 +94,12 @@ public class KnowledgeController {
     public ResponseEntity<Page<Document>> getDocuments(
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) String status) {
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) Long knowledgeBaseId) {
         if (keyword != null && !keyword.isBlank()) {
-            return ResponseEntity.ok(documentService.searchDocuments(keyword, PageRequest.of(page, size)));
+            return ResponseEntity.ok(documentService.searchDocuments(keyword, PageRequest.of(page, size), knowledgeBaseId));
         }
-        return ResponseEntity.ok(documentService.getDocuments(PageRequest.of(page, size), status));
+        return ResponseEntity.ok(documentService.getDocuments(PageRequest.of(page, size), status, knowledgeBaseId));
     }
 
     @GetMapping("/documents/{id}")
@@ -109,8 +110,8 @@ public class KnowledgeController {
     }
 
     @GetMapping("/stats")
-    public ResponseEntity<Map<String, Object>> getStats() {
-        return ResponseEntity.ok(documentService.getStats());
+    public ResponseEntity<Map<String, Object>> getStats(@RequestParam(required = false) Long knowledgeBaseId) {
+        return ResponseEntity.ok(documentService.getStats(knowledgeBaseId));
     }
 
     // ═══════════════ 编辑 ═══════════════
@@ -198,5 +199,15 @@ public class KnowledgeController {
     public ResponseEntity<List<Map<String, Object>>> exportDocuments(
             @RequestParam(defaultValue = "json") String format) {
         return ResponseEntity.ok(documentService.exportAll());
+    }
+
+    // ═══════════════ 全局搜索 ═══════════════
+
+    @GetMapping("/search")
+    public ResponseEntity<Page<Document>> globalSearch(
+            @RequestParam String q,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(documentService.searchDocuments(q, PageRequest.of(page, size)));
     }
 }

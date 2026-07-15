@@ -56,6 +56,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: '复习计划' }
   },
   {
+    path: '/cards',
+    name: 'KnowledgeCards',
+    component: () => import('@/views/KnowledgeCardView.vue'),
+    meta: { requiresAuth: true, title: '知识卡片' }
+  },
+  {
     path: '/learn',
     name: 'Learn',
     component: () => import('@/views/LearningDashboardView.vue'),
@@ -63,15 +69,11 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/learn/cards',
-    name: 'StudyCards',
-    component: () => import('@/views/StudyCardsBrowseView.vue'),
-    meta: { requiresAuth: true, title: '学习卡片库' }
+    redirect: '/cards'
   },
   {
     path: '/learn/card/:kbId/:index',
-    name: 'StudyCardDetail',
-    component: () => import('@/views/StudyCardDetailView.vue'),
-    meta: { requiresAuth: true, title: '卡片详情' }
+    redirect: '/cards'
   },
   {
     path: '/learn/code',
@@ -90,6 +92,12 @@ const routes: RouteRecordRaw[] = [
     name: 'LearningPathDetail',
     component: () => import('@/views/LearningPathDetailView.vue'),
     meta: { requiresAuth: true, title: '学习路径详情' }
+  },
+  {
+    path: '/learn/paths/:pathId/nodes/:nodeId',
+    name: 'LearningPathNodeDetail',
+    component: () => import('@/views/LearningPathNodeView.vue'),
+    meta: { requiresAuth: true, title: '章节学习' }
   },
   {
     path: '/learn/:mode',

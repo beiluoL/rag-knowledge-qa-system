@@ -30,6 +30,7 @@ public class LearningPathService {
     private final LearningPathNodeProgressRepository progressRepository;
     private final KnowledgeBaseRepository knowledgeBaseRepository;
     private final DocumentRepository documentRepository;
+    private final ChunkRepository chunkRepository;
     private final KnowledgeBaseService knowledgeBaseService;
     private final ObjectMapper objectMapper;
 
@@ -169,6 +170,56 @@ public class LearningPathService {
         }
         pathRepository.delete(path); // 节点与进度随 ON DELETE CASCADE 清理
         log.info("已删除学习路径 {}", pathId);
+    }
+
+    @Transactional
+    public void reorderNodes(Long userId, Long pathId, List<Map<String, Object>> orders) {
+        LearningPath path = pathRepository.findById(pathId)
+                .orElseThrow(() -> new BusinessException("学习路径不存在"));
+        if (!path.getUserId().equals(userId)) throw new BusinessException("无权操作该学习路径");
+
+        for (Map<String, Object> o : orders) {
+            Long nodeId = Long.valueOf(o.get("id").toString());
+            int idx = Integer.parseInt(o.get("orderIndex").toString());
+            nodeRepository.updateOrderIndex(nodeId, idx);
+        }
+    }
+
+    /** 获取节点详情（含关联文档的分块内容） */
+    public Map<String, Object> getNodeDetail(Long userId, Long pathId, Long nodeId) {
+        LearningPath path = pathRepository.findById(pathId)
+                .orElseThrow(() -> new BusinessException("学习路径不存在"));
+        if (!path.getUserId().equals(userId)) throw new BusinessException("无权访问");
+
+        LearningPathNode node = nodeRepository.findById(nodeId)
+                .orElseThrow(() -> new BusinessException("节点不存在"));
+        if (!node.getPathId().equals(pathId)) throw new BusinessException("节点不属于该路径");
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("id", node.getId());
+        result.put("title", node.getTitle());
+        result.put("description", node.getDescription());
+        result.put("orderIndex", node.getOrderIndex());
+        result.put("nodeType", node.getNodeType());
+
+        // 加载关联文档的完整内容
+        Map<String, Object> ref = parseJson(node.getRefJson());
+        if (ref != null && ref.containsKey("documentId")) {
+            Long docId = Long.valueOf(ref.get("documentId").toString());
+            Document doc = documentRepository.findById(docId).orElse(null);
+            if (doc != null) {
+                List<Map<String, Object>> chunks = new ArrayList<>();
+                for (Chunk c : chunkRepository.findByDocumentIdOrderByChunkIndexAsc(docId)) {
+                    chunks.add(Map.of("index", c.getChunkIndex(), "content", c.getContent()));
+                }
+                result.put("document", Map.of(
+                        "id", doc.getId(), "title", doc.getTitle(),
+                        "fileType", doc.getFileType(), "status", doc.getStatus().name()));
+                result.put("chunks", chunks);
+            }
+        }
+        result.put("ref", ref);
+        return result;
     }
 
     // ═══════════════ 内部 ═══════════════

@@ -362,6 +362,13 @@ async function finishSession() {
       streak: data.streak ?? 0,
       unlocked: data.unlocked ?? []
     }
+    // 成就解锁通知
+    const unlocked = data.unlocked as any[] | undefined
+    if (unlocked && unlocked.length > 0) {
+      for (const a of unlocked) {
+        ElMessage.success(`🏆 成就解锁：${a.name || a}`)
+      }
+    }
   } catch (e: any) {
     ElMessage.error('提交学习记录失败：' + (e.response?.data?.message || e.message))
     return

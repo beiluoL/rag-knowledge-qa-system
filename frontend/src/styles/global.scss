@@ -268,8 +268,8 @@ html, body, #app {
     word-break: break-word;
   }
   pre {
-    background: #1e293b;
-    color: #e2e8f0;
+    background: var(--code-bg);
+    color: var(--code-text);
     padding: var(--space-lg);
     border-radius: var(--radius-md);
     overflow-x: auto;
@@ -502,6 +502,12 @@ html, body, #app {
   flex-shrink: 0;
 }
 
+.ui-stat-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .ui-stat-value {
   font-size: 1.5rem;
   font-weight: 800;
@@ -519,6 +525,11 @@ html, body, #app {
   text-align: center;
   color: var(--text-muted);
 }
+
+.empty-card { text-align: center; padding: var(--space-4xl) var(--space-xl); background: var(--surface); border: 1px dashed var(--border); border-radius: var(--radius-lg); }
+.empty-card h3 { font-size: var(--text-lg); font-weight: 700; color: var(--text-primary); margin: var(--space-md) 0 var(--space-xs); }
+.empty-card p { color: var(--text-secondary); margin: 0; font-size: var(--text-sm); max-width: 400px; margin-inline: auto; line-height: 1.6; }
+.empty-icon-xl { font-size: 3rem; color: var(--primary-400); }
 
 .ui-loading {
   display: flex;
@@ -591,6 +602,40 @@ html, body, #app {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ───────────────────────────────
+   微交互动画（全站）
+   ─────────────────────────────── */
+.el-button {
+  transition: transform var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast),
+    background-color var(--duration-fast),
+    border-color var(--duration-fast);
+}
+.el-button:active:not(.is-disabled):not(:disabled) {
+  transform: translateY(1px) scale(0.98);
+}
+
+/* 卡片上浮工具类 */
+.lift {
+  transition: box-shadow var(--duration-base) var(--ease-out),
+    transform var(--duration-base) var(--ease-out),
+    border-color var(--duration-base);
+}
+.lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* 路由切换淡入 */
+.page-fade-enter-active,
+.page-fade-leave-active {
+  transition: opacity var(--duration-base) var(--ease-out);
+}
+.page-fade-enter-from,
+.page-fade-leave-to {
+  opacity: 0;
 }
 
 /* ═══════════════════════════════════════════

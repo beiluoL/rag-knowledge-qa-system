@@ -48,8 +48,12 @@
           :key="node.id"
           class="ui-card node-item"
           :class="{ done: node.status === 'COMPLETED', active: node.status === 'IN_PROGRESS' }"
+          draggable="true"
+          @dragstart="onDragStart($event, i)"
+          @dragover.prevent
+          @drop="onDrop($event, i)"
         >
-          <div class="node-index">{{ i + 1 }}</div>
+          <div class="node-index drag-handle" :class="{ dragging: dragIdx === i }">{{ i + 1 }}</div>
           <div class="node-body">
             <div class="node-title-row">
               <h3 class="node-title">{{ node.title }}</h3>
@@ -66,13 +70,13 @@
             <el-button
               v-if="node.status !== 'COMPLETED'"
               type="primary" size="small"
+              @click="goLearn(detail!.id, node.id)"
+            >进入学习</el-button>
+            <el-button
+              v-if="node.status !== 'COMPLETED'"
+              size="small" type="success" plain
               @click="setStatus(node, 'COMPLETED')"
             >标记完成</el-button>
-            <el-button
-              v-if="node.status === 'NOT_STARTED'"
-              size="small" plain
-              @click="setStatus(node, 'IN_PROGRESS')"
-            >开始学习</el-button>
             <el-button
               v-if="node.status === 'COMPLETED'"
               size="small" plain
@@ -97,10 +101,10 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Loader2, Trash2, ArrowLeft, Route
+  Loader2, Trash2, ArrowLeft, Route, BookOpen
 } from 'lucide-vue-next'
 import {
-  getLearningPathDetail, updateNodeProgress, deleteLearningPath,
+  getLearningPathDetail, updateNodeProgress, deleteLearningPath, reorderNodes,
   type LearningPathDetail as Detail, type NodeStatus
 } from '@/api/learningPath'
 
@@ -110,6 +114,25 @@ const router = useRouter()
 const loading = ref(true)
 const error = ref('')
 const detail = ref<Detail | null>(null)
+const dragIdx = ref(-1)
+
+function onDragStart(e: DragEvent, idx: number) {
+  dragIdx.value = idx
+  e.dataTransfer!.effectAllowed = 'move'
+}
+
+async function onDrop(e: DragEvent, targetIdx: number) {
+  const fromIdx = dragIdx.value
+  if (fromIdx < 0 || fromIdx === targetIdx || !detail.value) return
+  const nodes = [...detail.value.nodes]
+  const [moved] = nodes.splice(fromIdx, 1)
+  nodes.splice(targetIdx, 0, moved)
+  detail.value.nodes = nodes
+  dragIdx.value = -1
+  // 持久化
+  const orders = nodes.map((n, i) => ({ id: n.id as number, orderIndex: i }))
+  try { await reorderNodes(detail.value.id, orders) } catch { /* silent */ }
+}
 
 function statusType(s: NodeStatus): 'info' | 'warning' | 'success' {
   return s === 'COMPLETED' ? 'success' : s === 'IN_PROGRESS' ? 'warning' : 'info'
@@ -125,8 +148,16 @@ function formatDate(s?: string | null) {
 async function load() {
   loading.value = true
   error.value = ''
+  const id = Number(route.params.id)
+  // 防御：route.params.id 在某些 HMR/直链异常下可能是 undefined/非数字，
+  // 直接转成 NaN/undefined 拼进 URL 会打到 /learning/paths/NaN 触发后端 500。
+  if (!Number.isInteger(id) || id <= 0) {
+    error.value = '学习路径 ID 无效，请返回列表重新进入'
+    loading.value = false
+    return
+  }
   try {
-    const { data } = await getLearningPathDetail(Number(route.params.id))
+    const { data } = await getLearningPathDetail(id)
     detail.value = data
   } catch (e: any) {
     error.value = e.response?.data?.message || '加载失败'
@@ -162,7 +193,10 @@ async function confirmDelete() {
   }
 }
 
-onMounted(load)
+async function goLearn(pathId: number, nodeId: number) {
+  await setStatus(detail.value!.nodes.find(n => n.id === nodeId)!, 'IN_PROGRESS')
+  router.push(`/learn/paths/${pathId}/nodes/${nodeId}`)
+}
 </script>
 
 <style scoped>
@@ -200,15 +234,18 @@ onMounted(load)
   width: 36px; height: 36px; flex-shrink: 0; border-radius: 50%;
   background: var(--surface-3); color: var(--text-secondary);
   display: inline-flex; align-items: center; justify-content: center; font-weight: 700;
+  cursor: grab; user-select: none;
 }
-.node-item.done .node-index { background: var(--success-light, #dcfce7); color: var(--success, #16a34a); }
-.node-item.active .node-index { background: var(--warning-light, #fef3c7); color: var(--warning); }
+.node-index.dragging { opacity: 0.5; }
+.drag-handle:active { cursor: grabbing; }
+.node-item.done .node-index { background: var(--success-light); color: var(--success); }
+.node-item.active .node-index { background: var(--warning-light); color: var(--warning); }
 .node-body { flex: 1; min-width: 0; }
 .node-title-row { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; }
 .node-title { margin: 0; font-size: 0.95rem; font-weight: 700; color: var(--text-primary); }
 .node-desc { margin: 4px 0 0; font-size: 0.8125rem; color: var(--text-secondary); }
 .node-done-at { margin-top: 4px; font-size: 0.75rem; color: var(--text-muted); }
-.node-actions { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+.node-actions { display: flex; flex-wrap: wrap; gap: 6px; flex-shrink: 0; }
 
 .loading-spin { color: var(--text-muted); }
 

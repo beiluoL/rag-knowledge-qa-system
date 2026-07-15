@@ -139,7 +139,11 @@
       </article>
     </div>
 
-    <el-empty v-else description="选择知识库与题型，点击「生成题目」开始练习" />
+    <div v-else class="empty-card">
+      <el-icon class="empty-icon-xl"><Wand2 /></el-icon>
+      <h3>准备开始智能出题</h3>
+      <p>选择上方知识库范围、题型和数量，AI 将从知识库中提取要点生成练习题。</p>
+    </div>
   </div>
 </template>
 

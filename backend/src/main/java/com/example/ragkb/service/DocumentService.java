@@ -294,6 +294,19 @@ public class DocumentService {
      * @param status   文档状态筛选（COMPLETED/PROCESSING/FAILED/PENDING），null 表示不筛选
      */
     public Page<Document> getDocuments(Pageable pageable, String status) {
+        return getDocuments(pageable, status, null);
+    }
+
+    /**
+     * 获取文档列表（分页，支持状态筛选 + 知识库筛选）
+     */
+    public Page<Document> getDocuments(Pageable pageable, String status, Long knowledgeBaseId) {
+        if (knowledgeBaseId != null) {
+            if (status != null && !status.isBlank()) {
+                return documentRepository.findByStatusAndKnowledgeBaseIdOrderByCreatedAtDesc(status, knowledgeBaseId, pageable);
+            }
+            return documentRepository.findByKnowledgeBaseIdOrderByCreatedAtDesc(knowledgeBaseId, pageable);
+        }
         if (status != null && !status.isBlank()) {
             return documentRepository.findByStatusOrderByCreatedAtDesc(status, pageable);
         }
@@ -339,11 +352,21 @@ public class DocumentService {
      * 知识库统计
      */
     public Map<String, Object> getStats() {
+        return getStats(null);
+    }
+
+    /** 知识库维度统计 */
+    public Map<String, Object> getStats(Long knowledgeBaseId) {
+        if (knowledgeBaseId != null) {
+            return Map.of(
+                    "documentCount", documentRepository.countByKnowledgeBaseId(knowledgeBaseId),
+                    "chunkCount", documentRepository.sumChunkCountByKnowledgeBaseId(knowledgeBaseId),
+                    "embeddingCount", embeddingRepository.count());
+        }
         return Map.of(
                 "documentCount", documentRepository.countAll(),
                 "chunkCount", documentRepository.sumChunkCount(),
-                "embeddingCount", embeddingRepository.count()
-        );
+                "embeddingCount", embeddingRepository.count());
     }
 
     /**
@@ -363,8 +386,15 @@ public class DocumentService {
      * 搜索文档（按标题或标签关键词）
      */
     public Page<Document> searchDocuments(String keyword, Pageable pageable) {
+        return searchDocuments(keyword, pageable, null);
+    }
+
+    public Page<Document> searchDocuments(String keyword, Pageable pageable, Long knowledgeBaseId) {
         if (keyword == null || keyword.isBlank()) {
-            return getDocuments(pageable, null);
+            return getDocuments(pageable, null, knowledgeBaseId);
+        }
+        if (knowledgeBaseId != null) {
+            return documentRepository.searchByKeywordAndKnowledgeBaseId(keyword, knowledgeBaseId, pageable);
         }
         return documentRepository.findByTitleContainingIgnoreCaseOrTagsContainingIgnoreCase(
                 keyword, keyword, pageable);

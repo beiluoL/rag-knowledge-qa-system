@@ -24,6 +24,8 @@ public class LoginResponse {
     public static class UserInfo {
         private Long id;
         private String username;
+        private String nickname;
+        private String avatar;
         private String role;
     }
 }

@@ -40,10 +40,35 @@
         <!-- 通用 -->
         <section v-if="active === 'general'" class="settings-pane">
           <h3 class="pane-title">通用</h3>
-          <p class="pane-desc">通用设置将在后续版本开放（如默认知识库、消息历史保留等）。</p>
-          <div class="pane-placeholder">
-            <SlidersHorizontal class="placeholder-icon" />
-            <span>敬请期待</span>
+          <p class="pane-desc">基础偏好设置，将自动保存到本地。</p>
+
+          <div class="general-section">
+            <div class="general-item">
+              <div class="general-label">默认知识库</div>
+              <div class="general-desc">创建新对话时自动选中的知识库范围</div>
+              <el-tree-select
+                v-model="general.defaultKbId"
+                :data="kbTree"
+                :props="{ label: 'name', children: 'children', value: 'id' }"
+                placeholder="不预设（全部知识库）"
+                clearable
+                check-strictly
+                filterable
+                class="general-select"
+                @change="saveGeneral"
+              />
+            </div>
+            <div class="general-item">
+              <div class="general-label">历史消息保留</div>
+              <div class="general-desc">超过此天数的会话将自动归档清理</div>
+              <el-select v-model="general.historyDays" class="general-select">
+                <el-option :value="0" label="永久保留" />
+                <el-option :value="30" label="30 天" />
+                <el-option :value="90" label="90 天" />
+                <el-option :value="180" label="180 天" />
+                <el-option :value="365" label="365 天" />
+              </el-select>
+            </div>
           </div>
         </section>
 
@@ -116,15 +141,31 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useSettings } from '@/composables/useSettings'
 import { getTheme, setTheme, type ThemeMode } from '@/theme'
+import { getKbTree, type KbTreeNode } from '@/api/knowledgeBase'
 import {
   Settings, SlidersHorizontal, Palette, Info,
   Sun, Moon, Monitor, Check
 } from 'lucide-vue-next'
 
 const { visible } = useSettings()
+
+const GENERAL_KEY = 'ragkb-general-settings'
+const general = reactive({ defaultKbId: null as number | null, historyDays: 0 })
+const kbTree = ref<KbTreeNode[]>([])
+
+function loadGeneral() {
+  try {
+    const saved = localStorage.getItem(GENERAL_KEY)
+    if (saved) Object.assign(general, JSON.parse(saved))
+  } catch { /* ignore */ }
+}
+
+function saveGeneral() {
+  localStorage.setItem(GENERAL_KEY, JSON.stringify({ defaultKbId: general.defaultKbId, historyDays: general.historyDays }))
+}
 
 const tabs = [
   { key: 'general', label: '通用', icon: SlidersHorizontal },
@@ -145,6 +186,12 @@ const language = ref('zh-CN')
 function syncTheme() {
   current.value = getTheme()
 }
+
+async function loadKbTree() {
+  try { const { data } = await getKbTree(); kbTree.value = data } catch { /* ignore */ }
+}
+
+onMounted(() => { loadGeneral(); loadKbTree() })
 
 function selectTheme(mode: ThemeMode) {
   current.value = mode
@@ -244,6 +291,13 @@ function selectTheme(mode: ThemeMode) {
   color: var(--text-muted);
 }
 .placeholder-icon { width: 32px; height: 32px; }
+
+/* ── 通用 tab ── */
+.general-section { display: flex; flex-direction: column; gap: var(--space-xl); }
+.general-item { display: flex; flex-direction: column; gap: var(--space-xs); }
+.general-label { font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); }
+.general-desc { font-size: var(--text-xs); color: var(--text-secondary); margin-bottom: var(--space-sm); }
+.general-select { max-width: 340px; }
 
 /* 主题卡片 */
 .theme-grid {

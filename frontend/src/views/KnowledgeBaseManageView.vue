@@ -33,6 +33,10 @@
         node-key="id"
         :props="{ label: 'name', children: 'children' }"
         default-expand-all
+        draggable
+        :allow-drop="allowDrop"
+        :allow-drag="allowDrag"
+        @node-drop="onNodeDrop"
         class="kb-tree"
       >
         <template #default="{ data }">
@@ -156,6 +160,19 @@ const router = useRouter()
 const loading = ref(false)
 const kbTree = ref<KbTreeNode[]>([])
 const categories = ref<KbCategory[]>([])
+
+// 拖拽：仅非系统节点可拖，禁止拖入根节点
+function allowDrag(node: any) { return !node.isSystem }
+function allowDrop(_draggingNode: any, dropNode: any) { return !dropNode.data.isSystem }
+async function onNodeDrop(draggingNode: any, dropNode: any, dropType: string) {
+  const data = draggingNode.data as KbTreeNode
+  const parentId = dropType === 'inner' ? dropNode.data.id : (dropNode.parent?.data?.id || null)
+  try {
+    await updateKnowledgeBase(data.id, { parentId: parentId ?? undefined })
+    ElMessage.success('已移动')
+    await loadKbTree()
+  } catch (e: any) { ElMessage.error('移动失败') }
+}
 const activeCategory = ref<number | null>(null)
 const kbStats = ref<Record<number, number>>({})
 

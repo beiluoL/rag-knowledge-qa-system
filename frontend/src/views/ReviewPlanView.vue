@@ -111,7 +111,11 @@
       </div>
     </section>
 
-    <el-empty v-else description="选择知识库并设定目标，让 AI 为你定制复习路线" />
+    <div v-else class="empty-card">
+      <el-icon class="empty-icon-xl"><Calendar /></el-icon>
+      <h3>个性化复习计划</h3>
+      <p>选择知识库，设定复习天数和每日时长，AI 将根据你的学习进度生成定制复习路线。</p>
+    </div>
   </div>
 </template>
 

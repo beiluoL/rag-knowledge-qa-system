@@ -532,6 +532,6 @@ function finish(results: any[], logs: string[]) {
 .md-content :deep(li) { margin: 4px 0; }
 .md-content :deep(blockquote) { border-left: 3px solid var(--border); padding-left: 12px; color: var(--text-secondary); margin: 8px 0; }
 .md-content :deep(code):not(.hljs) { background: var(--surface-3); padding: 2px 6px; border-radius: var(--radius-sm); font-size: 0.9em; }
-.md-content :deep(pre) { background: #1e293b; border-radius: var(--radius-md); padding: 14px 16px; overflow-x: auto; margin: 12px 0; }
+.md-content :deep(pre) { background: var(--code-bg); border-radius: var(--radius-md); padding: 14px 16px; overflow-x: auto; margin: 12px 0; }
 .md-content :deep(pre code.hljs) { background: none; padding: 0; color: #e2e8f0; font-size: var(--text-sm); line-height: 1.6; }
 </style>

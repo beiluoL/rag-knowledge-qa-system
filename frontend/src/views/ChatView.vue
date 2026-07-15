@@ -129,18 +129,13 @@
       <div class="sidebar-footer">
         <el-dropdown trigger="click" @command="handleUserAction">
           <div class="user-info" role="button" tabindex="0" aria-label="用户菜单">
-            <el-avatar :size="32"><User /></el-avatar>
+            <el-avatar :size="32" :src="userAvatar"><User /></el-avatar>
             <span class="username">{{ authStore.username }}</span>
             <span v-if="authStore.isAdmin" class="admin-badge">管理员</span>
           </div>
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item command="profile"><el-icon><User /></el-icon>个人中心</el-dropdown-item>
-              <el-dropdown-item command="learn"><el-icon><BookOpenCheck /></el-icon>学习中心</el-dropdown-item>
-              <el-dropdown-item command="quiz"><el-icon><PenLine /></el-icon>智能出题</el-dropdown-item>
-              <el-dropdown-item command="writing"><el-icon><Pencil /></el-icon>智能写作</el-dropdown-item>
-              <el-dropdown-item command="review"><el-icon><Calendar /></el-icon>复习计划</el-dropdown-item>
-              <el-dropdown-item v-if="authStore.isAdmin" command="admin"><el-icon><Wrench /></el-icon>知识库管理</el-dropdown-item>
               <el-dropdown-item v-if="authStore.isAdmin" command="dashboard"><el-icon><BarChart3 /></el-icon>系统管理</el-dropdown-item>
               <el-dropdown-item command="settings"><el-icon><Settings /></el-icon>系统设置</el-dropdown-item>
               <el-dropdown-item command="logout" divided><el-icon><LogOut /></el-icon>退出登录</el-dropdown-item>
@@ -212,7 +207,20 @@
       </header>
 
       <div v-if="!currentConversationId && messages.length === 0" class="empty-chat">
-        <el-empty description="新建一个对话开始提问吧！" :image-size="120" />
+        <div class="welcome">
+          <div class="welcome-icon"><Sparkles /></div>
+          <h2 class="welcome-title">开始你的智能问答</h2>
+          <p class="welcome-desc">基于企业知识库检索答案，支持引用溯源与 RAG 推理过程可视化</p>
+          <div class="welcome-suggestions">
+            <button
+              v-for="q in suggestions"
+              :key="q"
+              class="suggestion-chip"
+              type="button"
+              @click="sendSuggestion(q)"
+            >{{ q }}</button>
+          </div>
+        </div>
       </div>
       <div v-else class="message-list" ref="messageListRef">
         <div
@@ -222,8 +230,8 @@
           :class="'message-' + msg.role.toLowerCase()"
         >
           <div class="message-avatar">
-            <el-avatar v-if="msg.role === 'USER'" :size="36"><User /></el-avatar>
-            <el-avatar v-else :size="36" class="ai-avatar">AI</el-avatar>
+            <el-avatar v-if="msg.role === 'USER'" :size="36" :src="userAvatar"><User /></el-avatar>
+            <el-avatar v-else :size="36" class="ai-avatar"><Sparkles /></el-avatar>
           </div>
           <div class="message-body">
             <div class="message-content markdown-body" v-html="renderMarkdown(msg.content)" @click="onContentClick" @keydown="onContentKey" />
@@ -354,27 +362,30 @@
 
       <!-- 底部输入区 -->
       <div class="chat-input-area">
-        <el-input
-          v-model="inputQuestion"
-          type="textarea"
-          :rows="3"
-          placeholder="输入你的问题，例如：退货政策是怎样的？如何配置数据库连接？"
-          :disabled="isStreaming"
-          aria-label="输入你的问题"
-          @keyup.enter.exact="handleSend"
-          resize="none"
-        />
-        <div class="input-actions">
-          <span class="input-hint">按 Enter 发送，Shift+Enter 换行</span>
-          <el-button
-            type="primary"
-            :loading="isStreaming"
-            @click="handleSend"
-            :icon="Send"
-            aria-label="发送消息"
-          >
-            {{ isStreaming ? '回答中...' : '发送' }}
-          </el-button>
+        <div class="input-card">
+          <el-input
+            v-model="inputQuestion"
+            type="textarea"
+            :rows="3"
+            placeholder="输入你的问题，例如：退货政策是怎样的？如何配置数据库连接？"
+            :disabled="isStreaming"
+            aria-label="输入你的问题"
+            @keyup.enter.exact="handleSend"
+            resize="none"
+            class="input-textarea"
+          />
+          <div class="input-actions">
+            <span class="input-hint">按 Enter 发送，Shift+Enter 换行</span>
+            <el-button
+              type="primary"
+              :loading="isStreaming"
+              @click="handleSend"
+              :icon="Send"
+              aria-label="发送消息"
+            >
+              {{ isStreaming ? '回答中...' : '发送' }}
+            </el-button>
+          </div>
         </div>
       </div>
     </main>
@@ -388,10 +399,11 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   BookOpen, Plus, Send, ArrowDown, Search, FileText, AlertTriangle,
   Library, MessageCircle, Pin, ThumbsUp, ThumbsDown, Copy, Menu, PanelLeftClose, PanelLeftOpen,
-  User, BookOpenCheck, PenLine, Pencil, Calendar, Wrench, BarChart3, LogOut, Trash2,
+  User, BarChart3, LogOut, Trash2,
   MoreHorizontal, Share2, Sparkles, ChevronDown, Settings
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
+import { resolveFileUrl } from '@/api/user'
 import { useSettings } from '@/composables/useSettings'
 
 const { open: openSettings } = useSettings()
@@ -409,6 +421,7 @@ import 'highlight.js/styles/atom-one-dark.css'
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const userAvatar = computed(() => resolveFileUrl(authStore.user?.avatar))
 
 const messageListRef = ref<HTMLElement>()
 const conversations = ref<Conversation[]>([])
@@ -436,6 +449,18 @@ const popoverStyle = ref({ top: '0px', left: '0px' })
 const currentTitle = computed(
   () => conversations.value.find(c => c.id === currentConversationId.value)?.title || ''
 )
+
+// 空状态引导问题（点击直接发送）
+const suggestions = [
+  '退货政策是怎样的？',
+  '如何配置数据库连接？',
+  '本周有哪些待处理的文档？'
+]
+function sendSuggestion(q: string) {
+  if (isStreaming.value) return
+  inputQuestion.value = q
+  handleSend()
+}
 
 // 按 DeepSeek 风格分组：置顶、今天、昨天、7 天内、更早
 const groupedConversations = computed(() => {
@@ -899,11 +924,6 @@ async function handleConvAction(cmd: string, conv: Conversation) {
 // 用户操作
 function handleUserAction(cmd: string) {
   if (cmd === 'profile') router.push('/profile')
-  else if (cmd === 'learn') router.push('/learn')
-  else if (cmd === 'quiz') router.push('/quiz')
-  else if (cmd === 'writing') router.push('/writing')
-  else if (cmd === 'review') router.push('/review-plan')
-  else if (cmd === 'admin') router.push('/admin/knowledge')
   else if (cmd === 'dashboard') router.push('/admin/dashboard')
   else if (cmd === 'settings') openSettings()
   else if (cmd === 'logout') {
@@ -1281,10 +1301,10 @@ onMounted(async () => {
   background: var(--surface-2);
 }
 .conv-popover-item.danger {
-  color: #dc2626;
+  color: var(--danger);
 }
 .conv-popover-item.danger:hover {
-  background: #fee2e2;
+  background: var(--danger-light);
 }
 .conv-popover-item svg {
   width: 16px;
@@ -1365,6 +1385,67 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
 }
+.welcome {
+  text-align: center;
+  max-width: 560px;
+  padding: var(--space-2xl);
+  animation: welcomeIn 0.5s var(--ease-out);
+}
+@keyframes welcomeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.welcome-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto var(--space-lg);
+  border-radius: var(--radius-lg);
+  background: var(--brand-gradient-soft);
+  color: var(--primary-600);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.welcome-icon :deep(svg) { width: 32px; height: 32px; }
+.welcome-title {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 var(--space-sm);
+}
+.welcome-desc {
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-2xl);
+  line-height: 1.6;
+}
+.welcome-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  justify-content: center;
+}
+.suggestion-chip {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  border-radius: var(--radius-full);
+  padding: var(--space-sm) var(--space-lg);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  transition: background var(--duration-fast), color var(--duration-fast), border-color var(--duration-fast), transform var(--duration-fast), box-shadow var(--duration-fast);
+}
+.suggestion-chip:hover {
+  background: var(--primary-50);
+  color: var(--primary-700);
+  border-color: var(--primary-200);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+.suggestion-chip:active { transform: scale(0.97); }
+.suggestion-chip:focus-visible { outline: 2px solid var(--primary-400); outline-offset: 2px; }
 
 .message-list {
   flex: 1;
@@ -1465,6 +1546,26 @@ onMounted(async () => {
   padding: var(--space-lg) var(--space-2xl);
   background: var(--surface);
   border-top: 1px solid var(--border);
+}
+.input-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-md) var(--space-lg);
+  transition: box-shadow var(--duration-base) var(--ease-out), border-color var(--duration-base);
+}
+.chat-input-area:focus-within .input-card,
+.input-card:focus-within {
+  border-color: var(--primary-300);
+  box-shadow: var(--shadow-lg);
+}
+.input-textarea :deep(.el-textarea__inner) {
+  box-shadow: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: var(--text-base);
 }
 .input-actions {
   display: flex;

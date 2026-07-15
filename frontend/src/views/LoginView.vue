@@ -40,8 +40,17 @@
       </el-form>
 
       <div class="hint" role="note">
-        <el-icon><Info /></el-icon>
-        <span>默认管理员账号：<b>admin</b> / <b>123456</b></span>
+        <el-icon class="hint-icon"><Info /></el-icon>
+        <span class="hint-text">默认管理员账号 <b>admin</b> / <b>123456</b></span>
+        <button
+          class="hint-copy"
+          type="button"
+          :title="copied ? '已复制' : '复制账号'"
+          :aria-label="copied ? '已复制' : '复制账号'"
+          @click="copyCredentials"
+        >
+          <el-icon><Copy /></el-icon>
+        </button>
       </div>
       <p class="alt">
         还没有账号？<router-link to="/register">立即注册</router-link>
@@ -55,7 +64,7 @@
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { User, Lock, Info, BookOpen } from 'lucide-vue-next'
+import { User, Lock, Info, BookOpen, Copy } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
@@ -71,6 +80,19 @@ const form = reactive({
 const rules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
+}
+
+const copied = ref(false)
+async function copyCredentials() {
+  const text = 'admin / 123456'
+  try {
+    await navigator.clipboard.writeText(text)
+    copied.value = true
+    ElMessage.success('已复制默认账号')
+    setTimeout(() => (copied.value = false), 1800)
+  } catch {
+    ElMessage.error('复制失败')
+  }
 }
 
 async function handleLogin() {
@@ -104,16 +126,16 @@ async function handleLogin() {
 
 .login-card {
   width: 100%;
-  max-width: 400px;
+  max-width: 440px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-4xl) var(--space-3xl);
-  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5xl) var(--space-4xl);
+  box-shadow: var(--shadow-md);
   transition: box-shadow var(--duration-base);
 
   &:hover {
-    box-shadow: var(--shadow-md);
+    box-shadow: var(--shadow-lg);
   }
 }
 
@@ -183,6 +205,40 @@ async function handleLogin() {
   b {
     color: var(--text-primary);
   }
+}
+
+.hint-icon {
+  flex-shrink: 0;
+}
+
+.hint-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.hint-copy {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--primary-600);
+  cursor: pointer;
+  transition: background var(--duration-fast), color var(--duration-fast), transform var(--duration-fast);
+}
+.hint-copy:hover {
+  background: var(--primary-100);
+}
+.hint-copy:active {
+  transform: scale(0.92);
+}
+.hint-copy:focus-visible {
+  outline: 2px solid var(--primary-400);
+  outline-offset: 1px;
 }
 
 .alt {

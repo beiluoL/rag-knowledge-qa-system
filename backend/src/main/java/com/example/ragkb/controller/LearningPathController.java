@@ -81,4 +81,22 @@ public class LearningPathController {
         pathService.deletePath(uid(authentication), id);
         return ResponseEntity.ok(Map.of("deleted", true));
     }
+
+    /** 获取节点详情（含文档内容） */
+    @GetMapping("/{pathId}/nodes/{nodeId}/detail")
+    public ResponseEntity<Map<String, Object>> nodeDetail(
+            @PathVariable Long pathId, @PathVariable Long nodeId,
+            Authentication authentication) {
+        return ResponseEntity.ok(pathService.getNodeDetail(uid(authentication), pathId, nodeId));
+    }
+
+    /** 拖拽排序节点 */
+    @PutMapping("/{id}/nodes/reorder")
+    public ResponseEntity<Map<String, Object>> reorderNodes(
+            @PathVariable Long id,
+            @RequestBody List<Map<String, Object>> orders,
+            Authentication authentication) {
+        pathService.reorderNodes(uid(authentication), id, orders);
+        return ResponseEntity.ok(Map.of("ok", true));
+    }
 }

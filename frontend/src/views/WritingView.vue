@@ -118,7 +118,11 @@
       </div>
     </section>
 
-    <el-empty v-else description="填写主题后点击「生成文章」，让 AI 基于你的知识库帮你写作" />
+    <div v-else class="empty-card">
+      <el-icon class="empty-icon-xl"><Pencil /></el-icon>
+      <h3>AI 智能写作</h3>
+      <p>填写文章主题，选择知识库范围，AI 将从你的知识库中提取素材撰文。</p>
+    </div>
   </div>
 </template>
 

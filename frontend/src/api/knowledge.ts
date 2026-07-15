@@ -37,16 +37,16 @@ export function importFromUrl(url: string, mode: string, knowledgeBaseId?: numbe
 }
 
 // ── 查询 ──
-export function getDocuments(page = 0, size = 20, keyword?: string, status?: string) {
-  return request.get('/knowledge/documents', { params: { page, size, keyword, status } })
+export function getDocuments(page = 0, size = 20, keyword?: string, status?: string, knowledgeBaseId?: number) {
+  return request.get('/knowledge/documents', { params: { page, size, keyword, status, knowledgeBaseId } })
 }
 
 export function getDocumentDetail(id: number) {
   return request.get(`/knowledge/documents/${id}`)
 }
 
-export function getStats() {
-  return request.get('/knowledge/stats')
+export function getStats(knowledgeBaseId?: number) {
+  return request.get('/knowledge/stats', { params: { knowledgeBaseId } })
 }
 
 // ── 编辑 ──

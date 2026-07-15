@@ -1,72 +1,127 @@
 <template>
-  <div class="chat-layout">
-    <aside class="sidebar" :style="{ width: '280px' }">
-      <div class="sidebar-header">
-        <h3>💬 会话列表</h3>
+  <div class="profile-page">
+    <div class="profile-header">
+      <div>
+        <h1 class="page-title">个人中心</h1>
+        <p class="page-subtitle">管理你的账号资料与安全设置</p>
       </div>
-      <div class="sidebar-footer">
-        <el-button @click="router.push('/chat')" style="width:100%">← 返回对话</el-button>
+      <el-button :icon="ArrowLeft" @click="router.push('/chat')">返回对话</el-button>
+    </div>
+
+    <el-card class="profile-card">
+      <template #header><h2 class="profile-card-title">账号信息</h2></template>
+
+      <!-- 头像区 -->
+      <div class="avatar-section">
+        <div class="avatar-wrap" @click="triggerAvatarInput" role="button" tabindex="0"
+             aria-label="更换头像" @keydown.enter="triggerAvatarInput">
+          <el-avatar :size="96" :src="avatarDisplaySrc" class="avatar-img">
+            <User />
+          </el-avatar>
+          <div class="avatar-overlay">
+            <el-icon><Camera /></el-icon>
+            <span>更换头像</span>
+          </div>
+        </div>
+        <input ref="fileInputRef" type="file" accept="image/png,image/jpeg,image/webp,image/gif"
+               hidden @change="onAvatarChange" />
+        <p class="avatar-tip">支持 PNG / JPG / WEBP / GIF，大小 ≤ 2MB</p>
       </div>
-    </aside>
-    <main class="profile-main">
-      <el-card class="profile-card">
-        <template #header><h2>个人中心</h2></template>
-        <el-descriptions title="账号信息" :column="1" border>
-          <el-descriptions-item label="用户名">{{ userInfo.username }}</el-descriptions-item>
-          <el-descriptions-item label="角色">
-            <el-tag :type="userInfo.role === 'ADMIN' ? 'danger' : 'primary'">{{ userInfo.role }}</el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="注册时间">{{ userInfo.createdAt }}</el-descriptions-item>
-        </el-descriptions>
 
-        <!-- 用户资料编辑区域 -->
-        <el-divider />
-        <h3 style="margin-bottom:16px">编辑资料</h3>
-        <el-form :model="profileForm" label-width="100px" style="max-width:400px">
-          <el-form-item label="昵称">
-            <el-input v-model="profileForm.nickname" placeholder="输入昵称（可选）" maxlength="50" />
-          </el-form-item>
-          <el-form-item label="邮箱">
-            <el-input v-model="profileForm.email" placeholder="输入邮箱（可选）" maxlength="100" />
-          </el-form-item>
-          <el-form-item>
-            <el-button type="primary" :loading="profileSaving" @click="handleUpdateProfile">保存资料</el-button>
-          </el-form-item>
-        </el-form>
+      <el-descriptions :column="1" border>
+        <el-descriptions-item label="用户名">{{ userInfo.username }}</el-descriptions-item>
+        <el-descriptions-item label="角色">
+          <el-tag v-if="userInfo.role === 'ADMIN'" class="role-badge">管理员</el-tag>
+          <el-tag v-else class="role-badge role-user">{{ userInfo.role }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="注册时间">{{ formatDateTime(userInfo.createdAt) }}</el-descriptions-item>
+      </el-descriptions>
 
-        <!-- 修改密码区域 -->
-        <el-divider />
-        <h3 style="margin-bottom:16px">修改密码</h3>
-        <el-form :model="passwordForm" :rules="rules" ref="formRef" label-width="100px" style="max-width:400px">
-          <el-form-item label="旧密码" prop="oldPassword">
-            <el-input v-model="passwordForm.oldPassword" type="password" show-password />
-          </el-form-item>
-          <el-form-item label="新密码" prop="newPassword">
-            <el-input v-model="passwordForm.newPassword" type="password" show-password />
-          </el-form-item>
-          <el-form-item label="确认密码" prop="confirmPassword">
-            <el-input v-model="passwordForm.confirmPassword" type="password" show-password />
-          </el-form-item>
-          <el-form-item>
-            <el-button type="primary" :loading="saving" @click="handleChangePassword">保存修改</el-button>
-          </el-form-item>
-        </el-form>
-      </el-card>
-    </main>
+      <!-- 用户资料编辑区域 -->
+      <el-divider />
+      <h3 class="section-h">编辑资料</h3>
+      <el-form :model="profileForm" label-width="100px" style="max-width:400px">
+        <el-form-item label="昵称">
+          <el-input v-model="profileForm.nickname" placeholder="输入昵称（可选）" maxlength="50" />
+        </el-form-item>
+        <el-form-item label="邮箱">
+          <el-input v-model="profileForm.email" placeholder="输入邮箱（可选）" maxlength="100" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="profileSaving" @click="handleUpdateProfile">保存资料</el-button>
+        </el-form-item>
+      </el-form>
+
+      <!-- 修改密码区域 -->
+      <el-divider />
+      <h3 class="section-h">修改密码</h3>
+      <el-form :model="passwordForm" :rules="rules" ref="formRef" label-width="100px" style="max-width:400px">
+        <el-form-item label="旧密码" prop="oldPassword">
+          <el-input v-model="passwordForm.oldPassword" type="password" show-password />
+        </el-form-item>
+        <el-form-item label="新密码" prop="newPassword">
+          <el-input v-model="passwordForm.newPassword" type="password" show-password />
+        </el-form-item>
+        <el-form-item label="确认密码" prop="confirmPassword">
+          <el-input v-model="passwordForm.confirmPassword" type="password" show-password />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="saving" @click="handleChangePassword">保存修改</el-button>
+        </el-form-item>
+      </el-form>
+    </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import { ElMessage } from 'element-plus'
-import { getUserInfo, changePassword, updateProfile } from '@/api/user'
+import { ArrowLeft, User, Camera } from 'lucide-vue-next'
+import { getUserInfo, changePassword, updateProfile, uploadAvatar, resolveFileUrl } from '@/api/user'
 
 const router = useRouter()
+const authStore = useAuthStore()
 const saving = ref(false)
 const profileSaving = ref(false)
 const formRef = ref()
-const userInfo = reactive({ username: '', email: '', nickname: '', role: '', createdAt: '' })
+const fileInputRef = ref<HTMLInputElement>()
+const uploadingAvatar = ref(false)
+const userInfo = reactive({ username: '', email: '', nickname: '', avatar: '', role: '', createdAt: '' })
+
+/** 头像完整可访问 URL */
+const avatarDisplaySrc = computed(() => resolveFileUrl(userInfo.avatar))
+
+function triggerAvatarInput() {
+  fileInputRef.value?.click()
+}
+
+async function onAvatarChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = '' // 允许重复选择同一文件
+  if (!file) return
+  if (!file.type.startsWith('image/')) {
+    ElMessage.error('请选择图片文件')
+    return
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    ElMessage.error('头像图片不能超过 2MB')
+    return
+  }
+  uploadingAvatar.value = true
+  try {
+    const { data } = await uploadAvatar(file)
+    userInfo.avatar = data.avatar
+    if (authStore.user) authStore.user.avatar = data.avatar
+    ElMessage.success('头像已更新')
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.message || '头像上传失败')
+  } finally {
+    uploadingAvatar.value = false
+  }
+}
 
 /** 资料编辑表单 */
 const profileForm = reactive({ nickname: '', email: '' })
@@ -80,6 +135,15 @@ const rules = {
   oldPassword: [{ required: true, message: '请输入旧密码', trigger: 'blur' }],
   newPassword: [{ required: true, min: 4, message: '密码至少4位', trigger: 'blur' }],
   confirmPassword: [{ required: true, validator: validateConfirm, trigger: 'blur' }]
+}
+
+/** 格式化注册时间：ISO 字符串 → YYYY-MM-DD HH:mm */
+function formatDateTime(iso?: string) {
+  if (!iso) return '-'
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return iso
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 async function handleChangePassword() {
@@ -127,10 +191,93 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.chat-layout { height: 100vh; display: flex; }
-.sidebar { background: #fff; border-right: 1px solid #e4e7ed; display: flex; flex-direction: column; }
-.sidebar-header { padding: 16px; border-bottom: 1px solid #ebeef5; }
-.sidebar-footer { padding: 16px; border-top: 1px solid #ebeef5; margin-top: auto; }
-.profile-main { flex: 1; padding: 40px; overflow-y: auto; background: #f5f7fa; }
-.profile-card { max-width: 700px; }
+.profile-page {
+  min-height: 100vh;
+  background: var(--bg);
+  padding: var(--space-3xl) var(--space-2xl);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.profile-header {
+  width: 100%;
+  max-width: 760px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-3xl);
+  flex-wrap: wrap;
+}
+.profile-card {
+  width: 100%;
+  max-width: 760px;
+}
+.profile-card-title { font-size: 1.0625rem; font-weight: 700; color: var(--text-primary); }
+
+/* 头像区 */
+.avatar-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-2xl);
+}
+.avatar-wrap {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  cursor: pointer;
+  outline: none;
+  transition: transform var(--duration-fast);
+}
+.avatar-wrap:hover { transform: scale(1.03); }
+.avatar-wrap:focus-visible { box-shadow: 0 0 0 3px var(--primary-200); }
+.avatar-img {
+  border: 3px solid var(--surface);
+  box-shadow: var(--shadow-md);
+  background: var(--surface-3);
+}
+.avatar-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.55);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 0.75rem;
+  opacity: 0;
+  transition: opacity var(--duration-fast);
+}
+.avatar-wrap:hover .avatar-overlay,
+.avatar-wrap:focus-visible .avatar-overlay { opacity: 1; }
+.avatar-tip { font-size: var(--text-xs); color: var(--text-muted); margin: 0; }
+.section-h {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--space-lg);
+}
+/* ADMIN 角色徽章：主色 calm 风格（不再用 danger 红） */
+.role-badge {
+  background: var(--primary-50);
+  color: var(--primary-700);
+  border-color: var(--primary-200);
+  font-weight: 600;
+}
+.role-user {
+  background: var(--surface-3);
+  color: var(--text-secondary);
+  border-color: var(--border);
+}
+
+@media (max-width: 480px) {
+  .profile-page { padding: var(--space-lg) var(--space-md); }
+  .profile-header { flex-direction: column; }
+}
 </style>

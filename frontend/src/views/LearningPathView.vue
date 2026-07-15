@@ -147,6 +147,7 @@ function formatDate(s?: string) {
 }
 
 function goDetail(id: number) {
+  if (!Number.isFinite(id) || id <= 0) return
   router.push(`/learn/paths/${id}`)
 }
 
@@ -155,8 +156,8 @@ async function load() {
   error.value = ''
   try {
     const [p, k] = await Promise.all([listLearningPaths(), listKnowledgeBases()])
-    paths.value = p
-    kbOptions.value = k
+    paths.value = p.data
+    kbOptions.value = k.data as any
   } catch (e: any) {
     error.value = e.response?.data?.message || '加载学习路径失败'
   } finally {
@@ -212,7 +213,12 @@ async function submitGenerate() {
     })
     ElMessage.success('已生成学习路线')
     generateVisible.value = false
-    router.push(`/learn/paths/${data.id}`)
+    const targetId = (data && (data as any).id) as number | undefined
+    if (typeof targetId === 'number' && targetId > 0) {
+      router.push(`/learn/paths/${targetId}`)
+    } else {
+      router.push('/learn/paths')
+    }
   } catch (e: any) {
     ElMessage.error(e.response?.data?.message || '生成失败')
   } finally {

@@ -92,6 +92,8 @@ public class AuthService {
                 .user(LoginResponse.UserInfo.builder()
                         .id(user.getId())
                         .username(user.getUsername())
+                        .nickname(user.getNickname())
+                        .avatar(user.getAvatar())
                         .role(user.getRole().name())
                         .build())
                 .build();

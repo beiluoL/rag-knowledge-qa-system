@@ -3,9 +3,22 @@
     <div class="page-header">
       <div>
         <h1 class="page-title">文档管理</h1>
-        <p class="page-subtitle">上传与管理知识库文档，支持分块、向量化与在线预览。</p>
+        <p class="page-subtitle">选择知识库后管理其文档，支持分块、向量化与在线预览。</p>
       </div>
-      <el-button :icon="MessageCircle" @click="router.push('/chat')">返回对话</el-button>
+      <div class="header-right">
+        <el-tree-select
+          v-model="selectedKbId"
+          :data="kbTree"
+          :props="{ label: 'name', children: 'children', value: 'id' }"
+          placeholder="选择知识库..."
+          clearable
+          check-strictly
+          filterable
+          @change="onKbChange"
+          class="kb-select"
+        />
+        <el-button :icon="MessageCircle" @click="router.push('/chat')">返回对话</el-button>
+      </div>
     </div>
 
     <el-card>
@@ -21,34 +34,60 @@
                 <el-icon><LayoutGrid /></el-icon> 卡片
               </el-radio-button>
             </el-radio-group>
-            <el-button type="primary" @click="openUploadDialog" :icon="Upload">上传</el-button>
-            <el-button v-if="selectedIds.length > 0" type="danger" @click="handleBatchDelete">
-              删除 ({{ selectedIds.length }})
-            </el-button>
-            <el-button @click="exportData" :icon="Download">导出</el-button>
-            <el-button text type="danger" @click="handleClearAll">清空知识库</el-button>
-            <el-button @click="loadDocuments" :icon="RefreshCw">刷新</el-button>
+            <div class="header-actions-right">
+              <el-button v-if="selectedIds.length > 0" type="danger" @click="handleBatchDelete">
+                删除 ({{ selectedIds.length }})
+              </el-button>
+              <el-button type="primary" @click="openUploadDialog" :icon="Upload">上传</el-button>
+              <el-dropdown trigger="click">
+                <el-button :icon="MoreHorizontal" aria-label="更多操作" />
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item :icon="Download" @click="exportData">导出</el-dropdown-item>
+                    <el-dropdown-item :icon="RefreshCw" @click="loadDocuments">刷新</el-dropdown-item>
+                    <el-dropdown-item :icon="Trash2" divided @click="handleClearAll">清空知识库</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </div>
           </div>
         </div>
       </template>
 
-      <!-- 统计 + 搜索 -->
-      <el-row :gutter="16" class="stat-row">
-        <el-col :span="8"><el-statistic title="文档总数" :value="stats.documentCount" /></el-col>
-        <el-col :span="8"><el-statistic title="分块总数" :value="stats.chunkCount" /></el-col>
-        <el-col :span="8"><el-statistic title="向量总数" :value="stats.embeddingCount" /></el-col>
-      </el-row>
+      <!-- 统计概览 -->
+      <div class="stat-grid">
+        <div class="ui-stat-card">
+          <div class="ui-stat-icon"><el-icon><FileText /></el-icon></div>
+          <div class="ui-stat-meta">
+            <div class="ui-stat-value">{{ stats.documentCount }}</div>
+            <div class="ui-stat-label">文档总数</div>
+          </div>
+        </div>
+        <div class="ui-stat-card">
+          <div class="ui-stat-icon" style="background: var(--success-light); color: var(--success)">
+            <el-icon><Layers /></el-icon>
+          </div>
+          <div class="ui-stat-meta">
+            <div class="ui-stat-value">{{ stats.chunkCount }}</div>
+            <div class="ui-stat-label">分块总数</div>
+          </div>
+        </div>
+        <div class="ui-stat-card">
+          <div class="ui-stat-icon" style="background: var(--primary-50); color: var(--primary-600)">
+            <el-icon><Database /></el-icon>
+          </div>
+          <div class="ui-stat-meta">
+            <div class="ui-stat-value">{{ stats.embeddingCount }}</div>
+            <div class="ui-stat-label">向量总数</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 搜索 + 状态筛选 -->
       <div class="tool-row">
         <el-input v-model="searchKeyword" placeholder="搜索文档标题或标签..." clearable
           :prefix-icon="Search" @input="onSearch" @keyup.enter="loadDocuments" @clear="loadDocuments" class="search-input" />
-        <el-button type="primary" :icon="Search" @click="loadDocuments">查询</el-button>
-        <el-select v-model="statusFilter" placeholder="状态筛选" clearable size="default" class="status-select" @change="loadDocuments">
-          <el-option label="全部" value="" />
-          <el-option label="待处理" value="PENDING" />
-          <el-option label="处理中" value="PROCESSING" />
-          <el-option label="已完成" value="COMPLETED" />
-          <el-option label="失败" value="FAILED" />
-        </el-select>
+        <el-segmented v-model="statusFilter" :options="statusOptions" @change="loadDocuments" class="status-segment" />
       </div>
 
       <!-- ====== 列表 / 卡片视图 ====== -->
@@ -80,12 +119,14 @@
           <el-table-column label="大小" width="80">
             <template #default="{ row }">{{ formatSize(row.fileSize) }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="180" fixed="right">
+          <el-table-column label="操作" width="140" fixed="right">
             <template #default="{ row }">
-              <el-button size="small" text type="primary" @click="viewDetail(row.id)">详情</el-button>
-              <el-button size="small" text type="primary" @click="openEditDialog(row)">编辑</el-button>
-              <el-button size="small" text @click="openPreview(row)">预览</el-button>
-              <el-button size="small" text type="danger" @click="handleDelete(row.id)">删除</el-button>
+              <div class="row-actions">
+                <button class="icon-btn" type="button" title="详情" @click="viewDetail(row.id)"><el-icon><Eye /></el-icon></button>
+                <button class="icon-btn" type="button" title="编辑" @click="openEditDialog(row)"><el-icon><Pencil /></el-icon></button>
+                <button class="icon-btn" type="button" title="预览" @click="openPreview(row)"><el-icon><FileSearch /></el-icon></button>
+                <button class="icon-btn danger" type="button" title="删除" @click="handleDelete(row.id)"><el-icon><Trash2 /></el-icon></button>
+              </div>
             </template>
           </el-table-column>
           <template #empty>
@@ -114,10 +155,10 @@
                 </div>
                 <div class="card-time">{{ doc.createdAt?.substring(0,10) }}</div>
                 <div class="card-actions">
-                  <el-button size="small" text type="primary" @click="viewDetail(doc.id)">详情</el-button>
-                  <el-button size="small" text type="primary" @click="openEditDialog(doc)">编辑</el-button>
-                  <el-button size="small" text @click="openPreview(doc)">预览</el-button>
-                  <el-button size="small" text type="danger" @click="handleDelete(doc.id)">删除</el-button>
+                  <button class="icon-btn" type="button" title="详情" @click="viewDetail(doc.id)"><el-icon><Eye /></el-icon></button>
+                  <button class="icon-btn" type="button" title="编辑" @click="openEditDialog(doc)"><el-icon><Pencil /></el-icon></button>
+                  <button class="icon-btn" type="button" title="预览" @click="openPreview(doc)"><el-icon><FileSearch /></el-icon></button>
+                  <button class="icon-btn danger" type="button" title="删除" @click="handleDelete(doc.id)"><el-icon><Trash2 /></el-icon></button>
                 </div>
               </div>
             </el-col>
@@ -195,10 +236,23 @@
         </el-tab-pane>
       </el-tabs>
       <template #footer>
-        <el-button @click="uploadVisible=false">取消</el-button>
-        <el-button v-if="uploadTab==='file'&&pendingFiles.length" type="primary" :loading="uploading" @click="handleBatchUpload">上传 ({{ pendingFiles.length }})</el-button>
-        <el-button v-if="uploadTab==='url'&&importUrl" type="primary" :loading="uploading" @click="handleUrlImport">导入</el-button>
-        <el-button v-if="uploadTab==='paste'&&(pasteText||pasteImage)" type="primary" :loading="uploading" @click="handlePasteUpload">确认上传</el-button>
+        <div class="upload-footer">
+          <el-tree-select
+            v-model="uploadKbId"
+            :data="kbTree"
+            :props="{ label: 'name', children: 'children', value: 'id' }"
+            placeholder="目标知识库（必选）"
+            check-strictly
+            filterable
+            class="upload-kb-select"
+          />
+          <div class="upload-footer-btns">
+            <el-button @click="uploadVisible=false">取消</el-button>
+            <el-button v-if="uploadTab==='file'&&pendingFiles.length" type="primary" :loading="uploading" :disabled="!uploadKbId" @click="handleBatchUpload">上传 ({{ pendingFiles.length }})</el-button>
+            <el-button v-if="uploadTab==='url'&&importUrl" type="primary" :loading="uploading" :disabled="!uploadKbId" @click="handleUrlImport">导入</el-button>
+            <el-button v-if="uploadTab==='paste'&&(pasteText||pasteImage)" type="primary" :loading="uploading" :disabled="!uploadKbId" @click="handlePasteUpload">确认上传</el-button>
+          </div>
+        </div>
       </template>
     </el-dialog>
 
@@ -300,27 +354,41 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Upload, RefreshCw, Copy, Search, Download,
   List, LayoutGrid, Folder, Link, Image, Coins, CheckCircle2, MessageCircle,
-  FileText, StickyNote, Code, Table, Loader2
+  FileText, StickyNote, Code, Table, Loader2,
+  MoreHorizontal, Trash2, Eye, Pencil, FileSearch, Layers, Database
 } from 'lucide-vue-next'
 import { getDocuments, uploadDocuments, deleteDocument, getDocumentDetail, getStats,
   importFromUrl, updateDocument, updateChunk, deleteChunk,
   batchDeleteDocuments, clearAllDocuments, exportDocuments, getDocumentContentUrl,
   type DocumentItem, type DocumentChunk } from '@/api/knowledge'
+import { getKbTree, type KbTreeNode } from '@/api/knowledgeBase'
 import mammoth from 'mammoth'
 import * as XLSX from 'xlsx'
 
 const router = useRouter()
+const route = useRoute()
 const viewMode = ref<'list'|'card'>('list')
 const documents = ref<DocumentItem[]>([])
 const loadingDocs = ref(false)
 const searchKeyword = ref('')
 const statusFilter = ref('')
 const selectedIds = ref<number[]>([])
+// KB 选择
+const selectedKbId = ref<number | null>(null)
+const uploadKbId = ref<number | null>(null)
+const kbTree = ref<KbTreeNode[]>([])
+const statusOptions = [
+  { label: '全部', value: '' },
+  { label: '待处理', value: 'PENDING' },
+  { label: '处理中', value: 'PROCESSING' },
+  { label: '已完成', value: 'COMPLETED' },
+  { label: '失败', value: 'FAILED' }
+]
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 
 // 上传
@@ -377,14 +445,21 @@ async function loadDocuments(){
   try {
     const kw = searchKeyword.value || undefined
     const st = statusFilter.value || undefined
-    const [docsRes, statsRes] = await Promise.all([getDocuments(0, 50, kw, st), getStats()])
+    const kbId = selectedKbId.value || undefined
+    const [docsRes, statsRes] = await Promise.all([getDocuments(0, 50, kw, st, kbId), getStats(kbId)])
     documents.value = docsRes.data.content
     Object.assign(stats, statsRes.data)
   } finally { loadingDocs.value = false }
 }
 
+function onKbChange() { loadDocuments() }
+
+async function loadKbTree() {
+  try { const { data } = await getKbTree(); kbTree.value = data } catch { /* ignore */ }
+}
+
 // ── 上传 ──
-function openUploadDialog(){ uploadTab.value='file'; pendingFiles.value=[]; importUrl.value=''; pasteText.value=''; pasteImage.value=''; uploadVisible.value=true }
+async function openUploadDialog(){ uploadTab.value='file'; pendingFiles.value=[]; importUrl.value=''; pasteText.value=''; pasteImage.value=''; uploadKbId.value=selectedKbId.value; uploadVisible.value=true }
 function triggerFileInput(){ fileInputRef.value?.click() }
 function onFileInputChange(e:Event){ const t=e.target as HTMLInputElement; if(t.files) addFiles(Array.from(t.files)); t.value='' }
 function onDrop(e:DragEvent){ isDragging.value=false; if(e.dataTransfer?.files) addFiles(Array.from(e.dataTransfer.files)) }
@@ -396,9 +471,10 @@ onBeforeUnmount(()=>document.removeEventListener('paste',onPaste))
 
 async function handleBatchUpload(){
   if(!pendingFiles.value.length){ ElMessage.warning('请添加文件'); return }
+  if(!uploadKbId.value){ ElMessage.warning('请选择目标知识库'); return }
   uploading.value = true
   try {
-    const { data } = await uploadDocuments(pendingFiles.value)
+    const { data } = await uploadDocuments(pendingFiles.value, uploadKbId.value!)
     ElMessage.success(`上传完成: ${data.success} 成功${data.failed>0?`, ${data.failed} 失败`:''}`)
     uploadVisible.value = false; pendingFiles.value = []
     await loadDocuments(); setTimeout(loadDocuments, 3000)
@@ -407,8 +483,9 @@ async function handleBatchUpload(){
 }
 async function handleUrlImport(){
   if(!importUrl.value){ ElMessage.warning('请输入URL'); return }
+  if(!uploadKbId.value){ ElMessage.warning('请选择目标知识库'); return }
   uploading.value = true
-  try { const { data } = await importFromUrl(importUrl.value, importMode.value); ElMessage.success(data.message); uploadVisible.value = false; await loadDocuments(); setTimeout(loadDocuments,3000) }
+  try { const { data } = await importFromUrl(importUrl.value, importMode.value, uploadKbId.value!); ElMessage.success(data.message); uploadVisible.value = false; await loadDocuments(); setTimeout(loadDocuments,3000) }
   catch(e:any){ ElMessage.error(e.response?.data?.message||'导入失败') }
   finally { uploading.value = false }
 }
@@ -532,19 +609,27 @@ function renderPreviewMarkdown(text: string) {
   return marked.parse(text) as string
 }
 
-onMounted(loadDocuments)
+onMounted(() => { loadKbTree(); const sq = route.query.search as string; if (sq) searchKeyword.value = sq; loadDocuments() })
 </script>
 
 <style scoped>
 .card-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
 .card-title { font-weight: 600; font-size: 1rem; color: var(--text-primary); }
 .header-actions { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; }
+.header-actions-right { display: flex; align-items: center; gap: var(--space-sm); }
 .view-toggle { margin-right: 4px; }
 
-.stat-row { margin-bottom: var(--space-md); }
+.header-right { display: flex; align-items: center; gap: var(--space-md); }
+.kb-select { width: 240px; }
+
+.upload-footer { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); flex-wrap: wrap; }
+.upload-footer-btns { display: flex; gap: var(--space-sm); margin-left: auto; }
+.upload-kb-select { width: 200px; }
+
+.stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-md); margin-bottom: var(--space-lg); }
 .tool-row { display: flex; gap: var(--space-sm); align-items: center; margin-bottom: var(--space-lg); flex-wrap: wrap; }
-.search-input { max-width: 360px; }
-.status-select { width: 140px; }
+.search-input { max-width: 420px; flex: 1; min-width: 200px; }
+.status-segment { flex-shrink: 0; }
 
 .doc-content { min-height: 120px; }
 
@@ -573,8 +658,8 @@ onMounted(loadDocuments)
 
 /* ── 卡片视图 ── */
 .card-grid { margin-top: 4px; }
-.doc-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px 16px 14px; position: relative; transition: box-shadow var(--duration-fast), border-color var(--duration-fast); }
-.doc-card:hover { box-shadow: var(--shadow-md); border-color: var(--primary-500); }
+.doc-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px 16px 14px; position: relative; transition: box-shadow var(--duration-base) var(--ease-out), border-color var(--duration-base), transform var(--duration-base) var(--ease-out); }
+.doc-card:hover { box-shadow: var(--shadow-md); border-color: var(--primary-500); transform: translateY(-2px); }
 .card-check { position: absolute; top: 8px; right: 10px; }
 .card-icon { width: 44px; height: 44px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; font-size: 22px; background: var(--surface-3); margin-bottom: 10px; cursor: pointer; color: var(--text-secondary); }
 .card-icon :deep(.el-icon) { font-size: 22px; }
@@ -598,7 +683,28 @@ onMounted(loadDocuments)
 .card-info span { display: inline-flex; align-items: center; gap: 4px; }
 .card-info :deep(.el-icon) { font-size: 14px; }
 .card-time { font-size: 11px; color: var(--text-muted); margin-bottom: 8px; }
-.card-actions { display: flex; gap: 4px; justify-content: flex-end; border-top: 1px solid var(--divider); padding-top: 8px; }
+.card-actions { display: flex; gap: 4px; justify-content: flex-end; border-top: 1px solid var(--divider); padding-top: 10px; }
+.row-actions { display: flex; align-items: center; gap: 2px; }
+
+/* 行内 / 卡片图标按钮 */
+.icon-btn {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background var(--duration-fast), color var(--duration-fast), transform var(--duration-fast);
+}
+.icon-btn :deep(.el-icon) { font-size: 16px; }
+.icon-btn:hover { background: var(--surface-2); color: var(--primary-600); }
+.icon-btn:active { transform: scale(0.92); }
+.icon-btn.danger:hover { background: var(--danger-light); color: var(--danger); }
+.icon-btn:focus-visible { outline: 2px solid var(--primary-400); outline-offset: 1px; }
 
 /* ── 分块卡片 ── */
 .chunk-card { padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-md); margin-bottom: 8px; transition: all var(--duration-fast); }
@@ -636,7 +742,7 @@ onMounted(loadDocuments)
 .preview-text :deep(h1), .preview-text :deep(h2), .preview-text :deep(h3) { margin: 12px 0 6px; }
 .preview-text :deep(p) { margin: 6px 0; }
 .preview-text :deep(code) { background: var(--surface-3); padding: 2px 6px; border-radius: var(--radius-sm); font-size: var(--text-xs); }
-.preview-text :deep(pre) { background: #1e293b; color: #e2e8f0; padding: 12px; border-radius: var(--radius-md); overflow-x: auto; }
+.preview-text :deep(pre) { background: var(--code-bg); color: var(--code-text); padding: 12px; border-radius: var(--radius-md); overflow-x: auto; }
 .preview-text :deep(pre code) { background: none; padding: 0; color: inherit; }
 .excel-scroll { overflow-x: auto; }
 .sheet-title { margin: 16px 0 8px; font-size: 14px; color: var(--text-primary); }
@@ -646,10 +752,14 @@ onMounted(loadDocuments)
 .excel-table tr:first-child td { background: var(--primary-50); font-weight: 600; }
 
 /* ── 手机：操作按钮堆叠、表格横向滚动 ── */
+@media (max-width: 768px) {
+  .stat-grid { grid-template-columns: 1fr; }
+  .header-actions-right { flex-wrap: wrap; }
+}
 @media (max-width: 480px) {
   .card-actions { flex-wrap: wrap; justify-content: flex-start; }
   .tool-row { flex-direction: column; align-items: stretch; }
-  .search-input, .status-select { max-width: 100%; width: 100%; }
+  .search-input, .status-segment { max-width: 100%; width: 100%; }
   /* 触摸目标 ≥44px */
   .el-button { min-height: 44px; }
 }

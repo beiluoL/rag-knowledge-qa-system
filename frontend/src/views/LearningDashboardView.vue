@@ -16,23 +16,20 @@
     </div>
 
     <template v-else>
-      <!-- 英雄区：等级 / 经验 / 统计指标 -->
+      <!-- 英雄区：头像 / 等级 / 经验 / 统计指标 -->
       <section class="hero ui-card" aria-label="学习概览">
         <div class="hero-left">
-          <div class="level-ring" :style="{ '--p': dashboard.levelProgress }">
-            <div class="level-ring-inner">
-              <span class="level-num">{{ dashboard.level }}</span>
-              <span class="level-cap">Lv</span>
-            </div>
+          <div class="hero-avatar">
+            <el-avatar :size="72" :src="userAvatar"><User /></el-avatar>
           </div>
           <div class="hero-id">
             <div class="hero-title">
-              <span class="brand-gradient-text">{{ dashboard.title }}</span>
+              <span class="brand-gradient-text">{{ authStore.user?.nickname || authStore.username || '学员' }}</span>
               <el-tag v-if="dashboard.level >= 10" size="small" type="warning" effect="dark" class="hero-badge">
                 <el-icon><Medal /></el-icon> 高阶
               </el-tag>
             </div>
-            <div class="hero-sub">知识探索者 · 学习中心</div>
+            <div class="hero-sub">{{ dashboard.title }} · Lv {{ dashboard.level }}</div>
             <div class="xp-row">
               <div class="xp-bar">
                 <div class="xp-fill" :style="{ width: (dashboard.levelProgress * 100) + '%' }"></div>
@@ -70,6 +67,30 @@
         </div>
       </section>
 
+      <!-- 专注番茄钟 + 学习伙伴 -->
+      <div class="focus-panel ui-card">
+        <div class="focus-head">
+          <span class="focus-title"><el-icon><Timer /></el-icon> 专注番茄钟</span>
+          <span class="focus-phase" :class="phase">{{ phaseLabel }}</span>
+        </div>
+        <div class="focus-clock" :class="{ running: isRunning }">{{ mm }}:{{ ss }}</div>
+        <div class="focus-actions">
+          <button v-if="!isRunning" class="focus-btn primary" type="button" @click="start">
+            <el-icon><Play /></el-icon> 开始专注
+          </button>
+          <template v-else>
+            <button class="focus-btn" type="button" @click="pause">
+              <el-icon><Pause /></el-icon> 暂停
+            </button>
+            <button class="focus-btn ghost" type="button" @click="reset">
+              <el-icon><RotateCcw /></el-icon> 重置
+            </button>
+          </template>
+        </div>
+        <p class="focus-tip" :class="{ warn: distracted }">{{ focusTip }}</p>
+      </div>
+      <StudyPet :level="dashboard.level" :xp="dashboard.xp" />
+
       <!-- 每日总结激励条 -->
       <div class="daily-banner" role="status">
         <el-icon class="daily-icon"><Wand2 /></el-icon>
@@ -102,10 +123,10 @@
         <h3 class="ui-section-title">学习工具</h3>
       </div>
       <div class="ui-grid tool-grid" role="list">
-        <button class="mode-card" type="button" role="listitem" aria-label="浏览学习卡片库" @click="goPath('/learn/cards')">
-          <div class="mode-icon"><el-icon><Layers /></el-icon></div>
-          <div class="mode-name">学习卡片库</div>
-          <div class="mode-desc">以列表 / 时间轴浏览全部卡片，点击查看完整内容</div>
+        <button class="mode-card" type="button" role="listitem" aria-label="管理知识卡片" @click="goPath('/cards')">
+          <div class="mode-icon"><el-icon><StickyNote /></el-icon></div>
+          <div class="mode-name">知识卡片</div>
+          <div class="mode-desc">手动创建或从知识库文档 AI 抽取 Q&A 卡片，所有学习模式共用</div>
           <div class="mode-go">进入 <el-icon><ArrowRight /></el-icon></div>
         </button>
         <button class="mode-card" type="button" role="listitem" aria-label="打开代码练习编辑器" @click="goPath('/learn/code')">
@@ -124,6 +145,18 @@
           <div class="mode-icon"><el-icon><Route /></el-icon></div>
           <div class="mode-name">学习路径</div>
           <div class="mode-desc">把知识库整理成有序课程路线，按节点逐章推进并追踪进度</div>
+          <div class="mode-go">进入 <el-icon><ArrowRight /></el-icon></div>
+        </button>
+        <button class="mode-card" type="button" role="listitem" aria-label="智能写作" @click="goPath('/writing')">
+          <div class="mode-icon"><el-icon><Pencil /></el-icon></div>
+          <div class="mode-name">智能写作</div>
+          <div class="mode-desc">AI 辅助写作，生成报告、文章、文档等</div>
+          <div class="mode-go">进入 <el-icon><ArrowRight /></el-icon></div>
+        </button>
+        <button class="mode-card" type="button" role="listitem" aria-label="复习计划" @click="goPath('/review-plan')">
+          <div class="mode-icon"><el-icon><Calendar /></el-icon></div>
+          <div class="mode-name">复习计划</div>
+          <div class="mode-desc">AI 根据学习进度生成个性化复习计划</div>
           <div class="mode-go">进入 <el-icon><ArrowRight /></el-icon></div>
         </button>
       </div>
@@ -216,11 +249,38 @@ import {
   Code2,
   Layers,
   MessageCircle,
-  Route
+  Route,
+  StickyNote,
+  Pencil,
+  Calendar,
+  User,
+  Timer,
+  Play,
+  Pause,
+  RotateCcw
 } from 'lucide-vue-next'
 import { getDashboard, generateTasks, getAchievements, type Dashboard, type Achievement, type StudyTask } from '@/api/learning'
+import { useAuthStore } from '@/stores/auth'
+import { resolveFileUrl } from '@/api/user'
+import StudyPet from '@/components/StudyPet.vue'
+import { useStudySession } from '@/composables/useStudySession'
+
+const {
+  phase,
+  isRunning,
+  distracted,
+  mm,
+  ss,
+  phaseLabel,
+  focusTip,
+  start,
+  pause,
+  reset
+} = useStudySession()
 
 const router = useRouter()
+const authStore = useAuthStore()
+const userAvatar = computed(() => resolveFileUrl(authStore.user?.avatar))
 
 const loading = ref(true)
 const dashboard = ref<Dashboard>({
@@ -343,6 +403,8 @@ onMounted(() => {
   margin-bottom: var(--space-xl);
 }
 .hero-left { display: flex; align-items: center; gap: var(--space-xl); }
+.hero-avatar { flex-shrink: 0; }
+.hero-avatar :deep(.el-avatar) { border: 3px solid var(--primary-200); box-shadow: 0 0 0 4px var(--primary-50); }
 .level-ring {
   --p: 0;
   width: 84px; height: 84px;
@@ -379,6 +441,45 @@ onMounted(() => {
 .hero-stats .ui-stat-icon { background: var(--primary-50); color: var(--primary-600); }
 .ui-stat-icon.hot { background: var(--warning-light); color: var(--warning); }
 .ui-stat-value.hot { color: var(--warning); }
+
+/* 专注番茄钟 */
+.focus-panel {
+  margin-bottom: var(--space-xl);
+  padding: var(--space-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  max-width: 320px;
+}
+.focus-head { display: flex; align-items: center; justify-content: space-between; }
+.focus-title { display: inline-flex; align-items: center; gap: var(--space-sm); font-weight: 700; color: var(--text-primary); font-size: var(--text-base); }
+.focus-title :deep(.el-icon) { color: var(--primary-600); }
+.focus-phase {
+  font-size: var(--text-xs); font-weight: 600; padding: 2px 10px; border-radius: 999px;
+  background: var(--surface-3); color: var(--text-muted);
+}
+.focus-phase.focus { background: var(--primary-50); color: var(--primary-600); }
+.focus-phase.break { background: var(--warning-light); color: var(--warning); }
+.focus-clock {
+  font-size: 44px; font-weight: 800; letter-spacing: 1px; line-height: 1;
+  color: var(--text-primary); font-variant-numeric: tabular-nums;
+  transition: color var(--duration-fast);
+}
+.focus-clock.running { color: var(--primary-600); }
+.focus-actions { display: flex; gap: var(--space-sm); }
+.focus-btn {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  font: inherit; font-size: var(--text-sm); font-weight: 600; cursor: pointer;
+  padding: 9px 14px; border-radius: var(--radius-md);
+  border: 1px solid var(--border); background: var(--surface); color: var(--text-primary);
+  transition: transform var(--duration-fast), border-color var(--duration-fast), background var(--duration-fast);
+}
+.focus-btn:hover { transform: translateY(-1px); border-color: var(--primary-200); }
+.focus-btn.primary { background: var(--primary-600); border-color: var(--primary-600); color: #fff; }
+.focus-btn.primary:hover { background: var(--primary-700); border-color: var(--primary-700); }
+.focus-btn.ghost { flex: 0 0 auto; }
+.focus-tip { font-size: var(--text-xs); color: var(--text-secondary); line-height: 1.5; margin: 0; }
+.focus-tip.warn { color: var(--warning); font-weight: 600; }
 
 /* ── 每日总结 ── */
 .daily-banner {

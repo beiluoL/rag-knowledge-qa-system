@@ -54,9 +54,20 @@
           </button>
           <span class="crumb-title">{{ currentTitle }}</span>
         </div>
-        <el-dropdown trigger="click" @command="handleUserAction">
+        <div class="topbar-right">
+          <el-input
+            v-model="globalSearch"
+            placeholder="全局搜索文档..."
+            :prefix-icon="Search"
+            clearable
+            size="small"
+            class="topbar-search"
+            @keyup.enter="doGlobalSearch"
+            @clear="doGlobalSearch"
+          />
+          <el-dropdown trigger="click" @command="handleUserAction">
           <div class="user-chip" role="button" tabindex="0" aria-label="用户菜单">
-            <el-avatar :size="30"><User /></el-avatar>
+            <el-avatar :size="30" :src="sidebarAvatar"><User /></el-avatar>
             <span class="user-name">{{ authStore.username }}</span>
             <el-icon><ArrowDown /></el-icon>
           </div>
@@ -68,6 +79,7 @@
             </el-dropdown-menu>
           </template>
         </el-dropdown>
+        </div>
       </header>
       <main class="admin-content">
         <router-view />
@@ -80,13 +92,24 @@
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { BookOpen, FileText, Library, User, LineChart, MessageCircle, BookOpenCheck, Menu, ArrowDown, MessageSquare } from 'lucide-vue-next'
+import { resolveFileUrl } from '@/api/user'
+import { BookOpen, FileText, Library, User, LineChart, MessageCircle, BookOpenCheck, Menu, ArrowDown, MessageSquare, Search } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 
 const sidebarOpen = ref(false)
+
+/** 侧边栏用户头像（有上传头像则显示，否则回退到图标） */
+const sidebarAvatar = computed(() => resolveFileUrl(authStore.user?.avatar))
+const globalSearch = ref('')
+
+function doGlobalSearch() {
+  const q = globalSearch.value.trim()
+  if (q) router.push(`/admin/knowledge?search=${encodeURIComponent(q)}`)
+  else router.push('/admin/knowledge')
+}
 
 const currentTitle = computed(() => (route.meta.title as string) || '管理后台')
 
@@ -141,8 +164,11 @@ function handleUserAction(cmd: string) {
   padding: 0 var(--space-2xl);
   position: sticky;
   top: 0;
+  gap: var(--space-md);
   z-index: var(--z-sticky);
 }
+.topbar-right { display: flex; align-items: center; gap: var(--space-md); }
+.topbar-search { width: 240px; }
 
 .crumb { display: flex; align-items: center; gap: var(--space-sm); }
 .crumb-title { font-weight: 600; color: var(--text-primary); font-size: var(--text-base); }

@@ -6,9 +6,13 @@ import com.example.ragkb.model.entity.User;
 import com.example.ragkb.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
 
@@ -30,6 +34,8 @@ public class UserController {
                 "id", user.getId(),
                 "username", user.getUsername(),
                 "email", user.getEmail() != null ? user.getEmail() : "",
+                "nickname", user.getNickname() != null ? user.getNickname() : "",
+                "avatar", user.getAvatar() != null ? user.getAvatar() : "",
                 "role", user.getRole().name(),
                 "createdAt", user.getCreatedAt().toString()
         ));
@@ -57,6 +63,18 @@ public class UserController {
             @Valid @RequestBody UpdateProfileRequest request) {
         Long userId = Long.parseLong(authentication.getPrincipal().toString());
         User user = userService.updateProfile(userId, request);
+        return ResponseEntity.ok(buildUserResponse(user));
+    }
+
+    /**
+     * 上传并更新头像（需登录）
+     */
+    @PostMapping("/avatar")
+    public ResponseEntity<Map<String, Object>> uploadAvatar(
+            Authentication authentication,
+            @RequestParam("file") MultipartFile file) {
+        Long userId = Long.parseLong(authentication.getPrincipal().toString());
+        User user = userService.uploadAvatar(userId, file);
         return ResponseEntity.ok(buildUserResponse(user));
     }
 

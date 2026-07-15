@@ -48,6 +48,8 @@ public class SecurityConfig {
                 .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                 // 认证接口 - 无需登录
                 .requestMatchers("/api/auth/**").permitAll()
+                // 用户头像图片 - 公开访问（<img> 不携带 Bearer Token）
+                .requestMatchers("/api/files/avatar/**").permitAll()
                 // 知识库管理 - 仅管理员
                 .requestMatchers("/api/knowledge/**").hasRole("ADMIN")
                 // 管理员用户管理 - 仅管理员

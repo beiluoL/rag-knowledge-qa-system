@@ -30,6 +30,20 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
     /** 按状态筛选文档（分页） */
     Page<Document> findByStatusOrderByCreatedAtDesc(String status, Pageable pageable);
 
+    /** 按知识库分页（无状态筛选） */
+    Page<Document> findByKnowledgeBaseIdOrderByCreatedAtDesc(Long knowledgeBaseId, Pageable pageable);
+
+    /** 按知识库 + 状态分页 */
+    Page<Document> findByStatusAndKnowledgeBaseIdOrderByCreatedAtDesc(String status, Long knowledgeBaseId, Pageable pageable);
+
+    /** 按知识库搜索 */
+    @Query("SELECT d FROM Document d WHERE d.knowledgeBaseId = :kbId AND (LOWER(d.title) LIKE LOWER(CONCAT('%',:kw,'%')) OR LOWER(d.tags) LIKE LOWER(CONCAT('%',:kw,'%'))) ORDER BY d.createdAt DESC")
+    Page<Document> searchByKeywordAndKnowledgeBaseId(@Param("kw") String keyword, @Param("kbId") Long knowledgeBaseId, Pageable pageable);
+
+    /** 按知识库统计文档数与分块和 */
+    @Query("SELECT COALESCE(SUM(d.chunkCount), 0) FROM Document d WHERE d.knowledgeBaseId = :kbId")
+    long sumChunkCountByKnowledgeBaseId(@Param("kbId") Long kbId);
+
     /** 按知识库统计/查询文档 */
     List<Document> findByKnowledgeBaseId(Long knowledgeBaseId);
 
