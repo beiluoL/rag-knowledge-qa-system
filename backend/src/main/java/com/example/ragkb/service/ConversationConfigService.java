@@ -2,6 +2,7 @@ package com.example.ragkb.service;
 
 import com.example.ragkb.model.entity.ConversationConfig;
 import com.example.ragkb.repository.ConversationConfigRepository;
+import com.example.ragkb.service.DocumentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,7 @@ public class ConversationConfigService {
     private final DynamicAiProvider dynamicAiProvider;
     private final AiFrameworkRouter aiFrameworkRouter;
     private final ConversationConfigRepository configRepository;
+    private final DocumentService documentService;
 
     /**
      * 读取当前全量配置：内存中的模式/框架 + DB 持久化的可视化开关 + 真 SSE 流式开关
@@ -60,7 +62,13 @@ public class ConversationConfigService {
             dynamicAiProvider.switchMode(aiMode);
         }
         if (aiFramework != null) {
+            int oldDim = aiFrameworkRouter.getEmbeddingDimension();
             aiFrameworkRouter.switchFramework(aiFramework);
+            int newDim = aiFrameworkRouter.getEmbeddingDimension();
+            if (oldDim != newDim) {
+                int n = documentService.reprocessAllDocuments();
+                log.info("框架切换致 embedding 维度变化({}→{})，已触发 {} 个文档重新向量化", oldDim, newDim, n);
+            }
         }
         if (ragVisualizationEnabled != null || trueSseStreamingEnabled != null
                 || hybridEnabled != null || rrfK != null) {
@@ -99,6 +107,14 @@ public class ConversationConfigService {
      */
     public boolean isTrueSseStreamingEnabled() {
         return loadTrueSseStreamingEnabled();
+    }
+
+    /**
+     * 实时读取「RAG 过程可视化」开关（供聊天页用户端读取，决定是否展示推理步骤）。
+     * 取不到配置时默认 true（展示）。
+     */
+    public boolean isRagVisualizationEnabled() {
+        return loadRagVisualizationEnabled();
     }
 
     /**

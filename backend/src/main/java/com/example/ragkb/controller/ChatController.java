@@ -269,19 +269,25 @@ public class ChatController {
     }
 
     @GetMapping("/conversations/{id}")
-    public ResponseEntity<List<MessageDTO>> getConversationMessages(@PathVariable Long id) {
+    public ResponseEntity<List<MessageDTO>> getConversationMessages(@PathVariable Long id, Authentication authentication) {
+        Long userId = Long.parseLong(authentication.getPrincipal().toString());
+        conversationService.assertOwnership(id, userId);
         return ResponseEntity.ok(conversationService.getConversationMessages(id));
     }
 
     @PutMapping("/conversations/{id}")
     public ResponseEntity<Map<String, String>> renameConversation(
-            @PathVariable Long id, @RequestBody Map<String, String> body) {
+            @PathVariable Long id, @RequestBody Map<String, String> body, Authentication authentication) {
+        Long userId = Long.parseLong(authentication.getPrincipal().toString());
+        conversationService.assertOwnership(id, userId);
         conversationService.renameConversation(id, body.get("title"));
         return ResponseEntity.ok(Map.of("message", "重命名成功"));
     }
 
     @DeleteMapping("/conversations/{id}")
-    public ResponseEntity<Map<String, String>> deleteConversation(@PathVariable Long id) {
+    public ResponseEntity<Map<String, String>> deleteConversation(@PathVariable Long id, Authentication authentication) {
+        Long userId = Long.parseLong(authentication.getPrincipal().toString());
+        conversationService.assertOwnership(id, userId);
         conversationService.deleteConversation(id);
         return ResponseEntity.ok(Map.of("message", "会话已删除"));
     }
@@ -295,7 +301,9 @@ public class ChatController {
      */
     @PutMapping("/messages/{id}/feedback")
     public ResponseEntity<Map<String, String>> feedbackMessage(
-            @PathVariable Long id, @RequestBody Map<String, String> body) {
+            @PathVariable Long id, @RequestBody Map<String, String> body, Authentication authentication) {
+        Long userId = Long.parseLong(authentication.getPrincipal().toString());
+        conversationService.assertMessageOwner(id, userId);
         conversationService.feedbackMessage(id, body.get("feedback"));
         return ResponseEntity.ok(Map.of("message", "反馈成功"));
     }
@@ -323,7 +331,9 @@ public class ChatController {
      * @return Markdown 格式的会话内容
      */
     @GetMapping("/conversations/{id}/export")
-    public ResponseEntity<String> exportConversation(@PathVariable Long id) {
+    public ResponseEntity<String> exportConversation(@PathVariable Long id, Authentication authentication) {
+        Long userId = Long.parseLong(authentication.getPrincipal().toString());
+        conversationService.assertOwnership(id, userId);
         String markdown = conversationService.exportConversation(id);
         return ResponseEntity.ok()
                 .header("Content-Type", "text/markdown; charset=UTF-8")
@@ -338,12 +348,23 @@ public class ChatController {
      * @param id 会话 ID
      */
     @PutMapping("/conversations/{id}/pin")
-    public ResponseEntity<Map<String, Object>> togglePinConversation(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> togglePinConversation(@PathVariable Long id, Authentication authentication) {
+        Long userId = Long.parseLong(authentication.getPrincipal().toString());
+        conversationService.assertOwnership(id, userId);
         Conversation conv = conversationService.togglePin(id);
         return ResponseEntity.ok(Map.of(
                 "id", conv.getId(),
                 "pinned", Boolean.TRUE.equals(conv.getPinned()),
                 "message", Boolean.TRUE.equals(conv.getPinned()) ? "已置顶" : "已取消置顶"
         ));
+    }
+
+    /**
+     * 公开只读：RAG 过程可视化开关（全局配置，普通用户聊天页读取，决定是否展示推理步骤）。
+     * 不暴露敏感信息，无需管理员权限。
+     */
+    @GetMapping("/rag-visualization")
+    public ResponseEntity<Map<String, Boolean>> getRagVisualization() {
+        return ResponseEntity.ok(Map.of("enabled", configService.isRagVisualizationEnabled()));
     }
 }

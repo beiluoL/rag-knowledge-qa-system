@@ -11,6 +11,41 @@
       </div>
     </div>
 
+    <!-- 跨库全局搜索 -->
+    <div class="kb-global-search">
+      <el-input
+        v-model="searchKeyword"
+        placeholder="跨库搜索文档内容…"
+        clearable
+        :prefix-icon="Search"
+        @keyup.enter="doSearch"
+        @clear="clearSearch"
+      />
+      <el-button type="primary" :icon="Search" :loading="searching" @click="doSearch">搜索</el-button>
+    </div>
+    <div v-if="searchKeyword" class="kb-search-result">
+      <div class="search-result-head">
+        <span>“{{ searchKeyword }}” 的跨库结果（{{ searchTotal }}）</span>
+        <el-button text size="small" @click="clearSearch">收起</el-button>
+      </div>
+      <div v-if="searching" v-loading="true" class="search-loading" />
+      <template v-else-if="searchResults.length">
+        <div
+          v-for="d in searchResults"
+          :key="d.id"
+          class="search-item"
+          @click="openDocKb(d)"
+        >
+          <component :is="FileText" class="search-item-icon" />
+          <div class="search-item-body">
+            <div class="search-item-title">{{ d.title }}</div>
+            <div class="search-item-meta">状态：{{ d.status }} · 分块：{{ d.chunkCount ?? 0 }}</div>
+          </div>
+        </div>
+      </template>
+      <el-empty v-else description="没有匹配的文档" />
+    </div>
+
     <!-- 分类筛选 -->
     <div class="kb-filters">
       <span class="filter-label">分类：</span>
@@ -147,16 +182,17 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { BookText, Code, Package, Scale, GraduationCap, HeartPulse, Folder, FolderOpen, Plus, Upload, Library, X } from 'lucide-vue-next'
+import { BookText, Code, Package, Scale, GraduationCap, HeartPulse, Folder, FolderOpen, Plus, Upload, Library, X, Search, FileText } from 'lucide-vue-next'
 import {
   getKbTree, getCategories, createCategory, deleteCategory,
   createKnowledgeBase, updateKnowledgeBase, deleteKnowledgeBase, getKbStats,
   type KbTreeNode, type KbCategory
 } from '@/api/knowledgeBase'
-import { uploadDocument } from '@/api/knowledge'
+import { uploadDocument, globalSearch } from '@/api/knowledge'
 import type { UploadUserFile, UploadFile } from 'element-plus'
 
 const router = useRouter()
+const route = useRoute()
 const loading = ref(false)
 const kbTree = ref<KbTreeNode[]>([])
 const categories = ref<KbCategory[]>([])
@@ -227,6 +263,36 @@ const uploadVisible = ref(false)
 const uploadTarget = ref<KbTreeNode | null>(null)
 const fileList = ref<UploadUserFile[]>([])
 const uploading = ref(false)
+
+// 跨库全局搜索
+const searchKeyword = ref('')
+const searchResults = ref<any[]>([])
+const searchTotal = ref(0)
+const searching = ref(false)
+async function doSearch() {
+  const q = searchKeyword.value.trim()
+  if (!q) { clearSearch(); return }
+  searching.value = true
+  try {
+    const res = await globalSearch(q)
+    searchResults.value = res.data.content || []
+    searchTotal.value = res.data.totalElements ?? searchResults.value.length
+  } catch (e: any) {
+    ElMessage.error('搜索失败：' + (e.response?.data?.message || e.message))
+    searchResults.value = []
+  } finally {
+    searching.value = false
+  }
+}
+function clearSearch() {
+  searchKeyword.value = ''
+  searchResults.value = []
+  searchTotal.value = 0
+}
+function openDocKb(d: any) {
+  if (d.knowledgeBaseId) router.push({ path: '/chat', query: { kb: String(d.knowledgeBaseId) } })
+  else ElMessage.info('该文档未归属知识库')
+}
 
 async function loadAll() {
   loading.value = true
@@ -339,7 +405,11 @@ function openChat(kb: KbTreeNode) {
   router.push({ path: '/chat', query: { kb: String(kb.id) } })
 }
 
-onMounted(loadAll)
+onMounted(() => {
+  loadAll()
+  const q = route.query.search
+  if (q && typeof q === 'string') { searchKeyword.value = q; doSearch() }
+})
 </script>
 
 <style scoped>
@@ -384,4 +454,49 @@ onMounted(loadAll)
   /* 触摸目标 ≥44px */
   .el-button { min-height: 44px; }
 }
+
+/* 跨库全局搜索 */
+.kb-global-search {
+  display: flex;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+}
+.kb-global-search .el-input { flex: 1; }
+.kb-search-result {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  margin-bottom: var(--space-2xl);
+  box-shadow: var(--shadow-sm);
+}
+.search-result-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-sm);
+}
+.search-loading { min-height: 80px; }
+.search-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--duration-fast);
+}
+.search-item:hover { background: var(--surface-2); }
+.search-item-icon { width: 18px; height: 18px; color: var(--brand-1); flex-shrink: 0; }
+.search-item-body { min-width: 0; }
+.search-item-title {
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.search-item-meta { font-size: var(--text-xs); color: var(--text-muted); }
 </style>

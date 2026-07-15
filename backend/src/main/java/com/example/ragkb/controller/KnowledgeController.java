@@ -205,9 +205,12 @@ public class KnowledgeController {
 
     @GetMapping("/search")
     public ResponseEntity<Page<Document>> globalSearch(
-            @RequestParam String q,
+            @RequestParam(required = false, defaultValue = "") String q,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
+        if (q == null || q.isBlank()) {
+            return ResponseEntity.ok(Page.empty(PageRequest.of(page, size)));
+        }
         return ResponseEntity.ok(documentService.searchDocuments(q, PageRequest.of(page, size)));
     }
 }

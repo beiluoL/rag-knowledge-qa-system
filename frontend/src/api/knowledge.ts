@@ -49,6 +49,11 @@ export function getStats(knowledgeBaseId?: number) {
   return request.get('/knowledge/stats', { params: { knowledgeBaseId } })
 }
 
+// 跨库全局搜索（文档级），参数名 q，空查询返回空结果
+export function globalSearch(q: string, page = 0, size = 20) {
+  return request.get('/knowledge/search', { params: { q, page, size } })
+}
+
 // ── 编辑 ──
 export function updateDocument(id: number, data: { title?: string; tags?: string; description?: string }) {
   return request.put(`/knowledge/documents/${id}`, data)

@@ -52,6 +52,25 @@ public class ConversationService {
                 .orElseThrow(() -> new BusinessException("会话不存在"));
     }
 
+    /** 校验会话归属当前用户，否则抛出拒绝访问异常（会话越权防护） */
+    public void assertOwnership(Long conversationId, Long userId) {
+        Conversation conv = getConversation(conversationId);
+        if (!conv.getUserId().equals(userId)) {
+            throw new org.springframework.security.access.AccessDeniedException("无权访问该会话");
+        }
+    }
+
+    /** 校验消息归属当前用户（通过消息找到所属会话再比对 owner） */
+    public void assertMessageOwner(Long messageId, Long userId) {
+        Message msg = messageRepository.findById(messageId)
+                .orElseThrow(() -> new BusinessException("消息不存在"));
+        Conversation conv = conversationRepository.findById(msg.getConversationId())
+                .orElseThrow(() -> new BusinessException("会话不存在"));
+        if (!conv.getUserId().equals(userId)) {
+            throw new org.springframework.security.access.AccessDeniedException("无权操作该消息");
+        }
+    }
+
     /**
      * 获取会话中的所有消息
      */

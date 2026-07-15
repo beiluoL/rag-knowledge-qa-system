@@ -682,6 +682,22 @@
       "streak_complete": {
         "from": ["*"],
         "to": "proud"
+      },
+      "pet_combo": {
+        "from": ["poke"],
+        "to": "angry"
+      },
+      "user_summon": {
+        "from": ["*"],
+        "to": "walk"
+      },
+      "user_throw": {
+        "from": ["*"],
+        "to": "surprised"
+      },
+      "level_up": {
+        "from": ["*"],
+        "to": "celebrate"
       }
     }
   },

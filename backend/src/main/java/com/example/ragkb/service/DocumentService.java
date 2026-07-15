@@ -1,6 +1,7 @@
 package com.example.ragkb.service;
 
 import com.example.ragkb.exception.BusinessException;
+import com.example.ragkb.util.SsrfGuard;
 import com.example.ragkb.model.entity.Chunk;
 import com.example.ragkb.model.entity.Document;
 import com.example.ragkb.model.entity.KbCategory;
@@ -605,10 +606,13 @@ public class DocumentService {
     @Transactional
     public Document importFromUrl(String url, String mode, Long userId, Long knowledgeBaseId) {
         try {
+            // SSRF 防护：拒绝内网/私有/保留地址
+            SsrfGuard.validate(url);
             // 使用 Jsoup 抓取网页
             org.jsoup.Connection conn = org.jsoup.Jsoup.connect(url)
                     .userAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36")
-                    .timeout(15000);
+                    .timeout(15000)
+                    .followRedirects(false);
             org.jsoup.nodes.Document htmlDoc = conn.get();
 
             String title = htmlDoc.title();
@@ -670,7 +674,23 @@ public class DocumentService {
             throw e;
         } catch (Exception e) {
             log.error("URL 导入失败: {}", url, e);
-            throw new BusinessException("URL 导入失败: " + e.getMessage());
+            throw new BusinessException("网页导入失败，请检查链接是否有效或稍后重试");
         }
+    }
+
+    /**
+     * 批量重新向量化所有已处理文档（切换 embedding 框架/维度后触发）。
+     * 复用异步处理逻辑，不阻塞调用方。
+     */
+    public int reprocessAllDocuments() {
+        List<Document> docs = documentRepository.findAll();
+        int count = 0;
+        for (Document d : docs) {
+            if (d.getStatus() == DocumentStatus.COMPLETED || d.getStatus() == DocumentStatus.FAILED) {
+                processDocumentAsync(d.getId());
+                count++;
+            }
+        }
+        return count;
     }
 }

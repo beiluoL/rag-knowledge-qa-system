@@ -412,6 +412,7 @@ import { getConversations, getConversationMessages, sendMessage as sendChatMessa
   togglePinConversation,
   type Conversation, type Message, type Reference } from '@/api/chat'
 import { getAiMode, getAiFramework } from '@/api/aimode'
+import request from '@/api/request'
 import { getKbTree, type KbTreeNode } from '@/api/knowledgeBase'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
@@ -549,6 +550,10 @@ onMounted(() => {
       closePopover()
     }
   })
+  // 读取后台「RAG 过程可视化」全局开关，尊重管理员的配置（普通用户只读端点）
+  request.get('/chat/rag-visualization').then((r: any) => {
+    if (typeof r?.data?.enabled === 'boolean') ragStepsVisible.value = r.data.enabled
+  }).catch(() => {})
 })
 
 // RAG 过程可视化
