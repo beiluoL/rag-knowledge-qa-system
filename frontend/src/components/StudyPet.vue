@@ -101,8 +101,8 @@ const props = defineProps<{ level: number; xp: number }>()
 
 /* =========================================================
  * 素材帧播放器（Sprite Sheet 模式）
- * - 单张雪碧图 + background-position 切帧，1 次请求替代 96 次
- * - 优先 WebP（lossless，约 3.2MB），不支持回退 PNG
+ * - 单张雪碧图 + background-position 切帧，1 次请求替代 164 次
+ * - 优先 WebP（lossless，约 5.3MB），不支持回退 PNG
  * ========================================================= */
 const PET_BASE = '/pet/'
 const sheetMeta: any = cfg.sheet
@@ -110,6 +110,14 @@ const assetIndex: Record<string, number[]> = cfg.assetIndex
 const animations: Record<string, any> = cfg.animations
 const transitions: Record<string, { from: string[]; to: string }> =
   cfg.stateMachine?.transitions ?? {}
+
+// 动画名 <-> 触发名 双向映射：既能走状态机 transition，也能按动画自身的
+// trigger 字段直接播放（调试面板 / 名称直发都可用）
+const triggerToAnim: Record<string, string> = {}
+for (const [name, a] of Object.entries(animations)) {
+  triggerToAnim[name] = name
+  if (a && a.trigger) triggerToAnim[a.trigger] = name
+}
 
 // 显示尺寸（与旧 .pet-img 宽度一致）
 const DISPLAY = 150
@@ -221,9 +229,21 @@ function stopLoop() {
 
 /* =========================================================
  * 事件总线订阅：外部学习会话（番茄钟/专注/分心）驱动宠物
+ * - 优先走状态机 transition（受 from 约束，避免打断合理状态）
+ * - 失败时按动画 trigger 字段 / 动画名直接播放（调试/名称直发必响应）
  * ========================================================= */
 function onPetEvent(type: string) {
-  trigger(type)
+  const to = canTrigger(type)
+  if (to) {
+    play(to)
+    return
+  }
+  const direct = triggerToAnim[type]
+  if (direct) {
+    play(direct)
+    return
+  }
+  if (animations[type]) play(type)
 }
 
 /* =========================================================
@@ -345,7 +365,7 @@ function checkNight() {
   const isNight = h >= (cfg.studyMonitor?.nightModeStartHour ?? 23) ||
     h < (cfg.studyMonitor?.nightModeEndHour ?? 7)
   if (isNight && currentAnim.value !== 'sleep' && currentAnim.value !== 'walk') {
-    play('sleep')
+    trigger('night_mode') // -> sleep
   } else if (!isNight && currentAnim.value === 'sleep') {
     play('idle')
   }
@@ -437,6 +457,11 @@ function onVisibility() {
   else startLoop()
 }
 
+// 关闭/刷新页面 -> 企鹅鞠躬告别
+function onAppClose() {
+  trigger('app_close') // -> bow
+}
+
 /* =========================================================
  * 初始化 / 清理
  * ========================================================= */
@@ -451,6 +476,7 @@ onMounted(() => {
   checkNight()
   petRef.value?.addEventListener('contextmenu', onRightClick)
   document.addEventListener('visibilitychange', onVisibility)
+  window.addEventListener('beforeunload', onAppClose)
   // 订阅学习事件总线
   petBus.on('*', onPetEvent as any)
 })
@@ -459,6 +485,7 @@ onBeforeUnmount(() => {
   stopLoop()
   petRef.value?.removeEventListener('contextmenu', onRightClick)
   document.removeEventListener('visibilitychange', onVisibility)
+  window.removeEventListener('beforeunload', onAppClose)
   petBus.off('*', onPetEvent as any)
   if (wanderTimer) clearTimeout(wanderTimer)
   if (idleTimer) clearTimeout(idleTimer)
@@ -492,7 +519,6 @@ onBeforeUnmount(() => {
 .pet-img {
   display: block;
   pointer-events: none;
-  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.18));
   user-select: none;
   -webkit-user-drag: none;
 }

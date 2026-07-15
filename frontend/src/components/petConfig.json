@@ -1,21 +1,11 @@
 {
-  "name": "qq-penguin-desktop-pet",
-  "version": "1.0.0",
-  "description": "QQ企鹅桌面宠物 - 学习监督精灵图配置",
-  "author": "Trae Design",
-  "spriteConfig": {
-    "baseSize": {
-      "width": 1024,
-      "height": 1024
-    },
-    "targetSize": {
-      "width": 256,
-      "height": 256
-    },
-    "format": "jpg",
-    "fps": 8,
-    "scaleMode": "fit",
-    "imagePrefix": "assets/pet-"
+  "sheet": {
+    "frameW": 256,
+    "frameH": 256,
+    "cols": 16,
+    "rows": 11,
+    "file": "pet-sheet.png",
+    "webp": "pet-sheet.webp"
   },
   "animations": {
     "idle": {
@@ -301,6 +291,241 @@
       "description": "戴眼镜坐桌前安静看书",
       "trigger": "studying",
       "triggerLabel": "正在学习"
+    },
+    "drink": {
+      "name": "喝水提醒",
+      "frames": [
+        "drink-01",
+        "drink-02",
+        "drink-03",
+        "drink-04"
+      ],
+      "fps": 5,
+      "loop": false,
+      "priority": 3,
+      "description": "举水杯喝水补充水分",
+      "transitionTo": "idle",
+      "trigger": "drink_reminder",
+      "triggerLabel": "需要喝水"
+    },
+    "stretch": {
+      "name": "休息拉伸",
+      "frames": [
+        "stretch-01",
+        "stretch-02",
+        "stretch-03",
+        "stretch-04",
+        "stretch-05",
+        "stretch-06"
+      ],
+      "fps": 4,
+      "loop": false,
+      "priority": 3,
+      "description": "伸臂弯腰全身拉伸放松",
+      "transitionTo": "idle",
+      "trigger": "break_time",
+      "triggerLabel": "休息时间"
+    },
+    "coffee": {
+      "name": "喝咖啡提神",
+      "frames": [
+        "coffee-01",
+        "coffee-02",
+        "coffee-03",
+        "coffee-04"
+      ],
+      "fps": 5,
+      "loop": false,
+      "priority": 3,
+      "description": "捧咖啡打哈欠到精神焕发",
+      "transitionTo": "focus",
+      "trigger": "late_night_study",
+      "triggerLabel": "深夜学习"
+    },
+    "wash": {
+      "name": "洗脸清醒",
+      "frames": [
+        "wash-01",
+        "wash-02",
+        "wash-03",
+        "wash-04"
+      ],
+      "fps": 5,
+      "loop": false,
+      "priority": 4,
+      "description": "泼水洗脸清醒振作",
+      "transitionTo": "focus",
+      "trigger": "double_sleepy",
+      "triggerLabel": "连续犯困"
+    },
+    "celebrate": {
+      "name": "终极庆祝",
+      "frames": [
+        "celebrate-01",
+        "celebrate-02",
+        "celebrate-03",
+        "celebrate-04",
+        "celebrate-05",
+        "celebrate-06"
+      ],
+      "fps": 8,
+      "loop": false,
+      "priority": 5,
+      "description": "全目标达成撒花放烟花庆祝",
+      "transitionTo": "proud",
+      "trigger": "all_goals_complete",
+      "triggerLabel": "全部达标"
+    },
+    "poke": {
+      "name": "被戳反应",
+      "frames": [
+        "poke-01",
+        "poke-02",
+        "poke-03",
+        "poke-04"
+      ],
+      "fps": 6,
+      "loop": false,
+      "priority": 3,
+      "description": "被戳后惊跳后退不满",
+      "transitionTo": "idle",
+      "trigger": "user_poke",
+      "triggerLabel": "点击企鹅"
+    },
+    "dance": {
+      "name": "跳舞",
+      "frames": [
+        "dance-01",
+        "dance-02",
+        "dance-03",
+        "dance-04",
+        "dance-05",
+        "dance-06",
+        "dance-07",
+        "dance-08"
+      ],
+      "fps": 8,
+      "loop": false,
+      "priority": 3,
+      "description": "摇摆旋转跳跃完整舞蹈",
+      "transitionTo": "idle",
+      "trigger": "user_double_click",
+      "triggerLabel": "双击企鹅"
+    },
+    "sneeze": {
+      "name": "打喷嚏",
+      "frames": [
+        "sneeze-01",
+        "sneeze-02",
+        "sneeze-03",
+        "sneeze-04"
+      ],
+      "fps": 6,
+      "loop": false,
+      "priority": 3,
+      "description": "鼻子发痒到打喷嚏害羞",
+      "transitionTo": "idle",
+      "trigger": "random_event",
+      "triggerLabel": "随机触发"
+    },
+    "lookaround": {
+      "name": "东张西望",
+      "frames": [
+        "lookaround-01",
+        "lookaround-02",
+        "lookaround-03",
+        "lookaround-04",
+        "lookaround-05",
+        "lookaround-06"
+      ],
+      "fps": 4,
+      "loop": false,
+      "priority": 1,
+      "description": "左右上下张望好奇环视",
+      "transitionTo": "idle",
+      "trigger": "idle_long",
+      "triggerLabel": "闲置过久"
+    },
+    "bow": {
+      "name": "鞠躬告别",
+      "frames": [
+        "bow-01",
+        "bow-02",
+        "bow-03",
+        "bow-04"
+      ],
+      "fps": 4,
+      "loop": false,
+      "priority": 5,
+      "description": "深鞠躬挥手告别送心",
+      "transitionTo": "idle",
+      "trigger": "app_close",
+      "triggerLabel": "关闭应用"
+    },
+    "tired": {
+      "name": "疲惫",
+      "frames": [
+        "tired-01",
+        "tired-02",
+        "tired-03",
+        "tired-04"
+      ],
+      "fps": 4,
+      "loop": false,
+      "priority": 3,
+      "description": "困倦打哈欠瘫坐休息",
+      "transitionTo": "sleep",
+      "trigger": "over_study",
+      "triggerLabel": "过度学习"
+    },
+    "cold": {
+      "name": "怕冷",
+      "frames": [
+        "cold-01",
+        "cold-02",
+        "cold-03",
+        "cold-04"
+      ],
+      "fps": 4,
+      "loop": true,
+      "priority": 2,
+      "description": "裹紧围巾发抖踩脚取暖",
+      "trigger": "cold_weather",
+      "triggerLabel": "低温天气"
+    },
+    "confused": {
+      "name": "迷茫",
+      "frames": [
+        "confused-01",
+        "confused-02",
+        "confused-03",
+        "confused-04",
+        "confused-05",
+        "confused-06"
+      ],
+      "fps": 4,
+      "loop": false,
+      "priority": 2,
+      "description": "挠头摊手困惑到灵光一闪",
+      "transitionTo": "idle",
+      "trigger": "app_switching",
+      "triggerLabel": "频繁切应用"
+    },
+    "proud": {
+      "name": "自豪",
+      "frames": [
+        "proud-01",
+        "proud-02",
+        "proud-03",
+        "proud-04"
+      ],
+      "fps": 4,
+      "loop": false,
+      "priority": 3,
+      "description": "叉腰得意自信竖拇指",
+      "transitionTo": "idle",
+      "trigger": "streak_complete",
+      "triggerLabel": "连续达标"
     }
   },
   "stateMachine": {
@@ -315,22 +540,25 @@
         "to": "cheer"
       },
       "studying": {
-        "from": "*",
+        "from": [
+          "*"
+        ],
         "to": "focus"
       },
       "task_complete": {
         "from": "*",
         "to": "thumbsup"
       },
+      "study_stop": {
+        "from": "*",
+        "to": "idle"
+      },
       "goal_missed": {
         "from": "*",
         "to": "sad"
       },
       "study_too_long": {
-        "from": [
-          "focus",
-          "idle"
-        ],
+        "from": ["focus"],
         "to": "sleepy"
       },
       "distraction_detected": {
@@ -390,13 +618,70 @@
         "from": [
           "focus"
         ],
-        "to": "jump"
+        "to": "stretch"
       },
-      "study_stop": {
+      "drink_reminder": {
+        "from": ["*"],
+        "to": "drink"
+      },
+      "late_night_study": {
+        "from": ["*"],
+        "to": "coffee"
+      },
+      "double_sleepy": {
         "from": [
-          "*"
+          "sleepy"
         ],
-        "to": "idle"
+        "to": "wash"
+      },
+      "all_goals_complete": {
+        "from": "*",
+        "to": "celebrate"
+      },
+      "user_poke": {
+        "from": [
+          "idle",
+          "focus"
+        ],
+        "to": "poke"
+      },
+      "user_double_click": {
+        "from": [
+          "idle"
+        ],
+        "to": "dance"
+      },
+      "random_event": {
+        "from": [
+          "idle"
+        ],
+        "to": "sneeze"
+      },
+      "idle_long": {
+        "from": [
+          "idle"
+        ],
+        "to": "lookaround"
+      },
+      "app_close": {
+        "from": "*",
+        "to": "bow"
+      },
+      "over_study": {
+        "from": ["*"],
+        "to": "tired"
+      },
+      "cold_weather": {
+        "from": ["*"],
+        "to": "cold"
+      },
+      "app_switching": {
+        "from": ["*"],
+        "to": "confused"
+      },
+      "streak_complete": {
+        "from": ["*"],
+        "to": "proud"
       }
     }
   },
@@ -545,14 +830,102 @@
       93,
       94,
       95
+    ],
+    "drink": [
+      96,
+      97,
+      98,
+      99
+    ],
+    "stretch": [
+      100,
+      101,
+      102,
+      103,
+      104,
+      105
+    ],
+    "coffee": [
+      106,
+      107,
+      108,
+      109
+    ],
+    "wash": [
+      110,
+      111,
+      112,
+      113
+    ],
+    "celebrate": [
+      114,
+      115,
+      116,
+      117,
+      118,
+      119
+    ],
+    "poke": [
+      120,
+      121,
+      122,
+      123
+    ],
+    "dance": [
+      124,
+      125,
+      126,
+      127,
+      128,
+      129,
+      130,
+      131
+    ],
+    "sneeze": [
+      132,
+      133,
+      134,
+      135
+    ],
+    "lookaround": [
+      136,
+      137,
+      138,
+      139,
+      140,
+      141
+    ],
+    "bow": [
+      142,
+      143,
+      144,
+      145
+    ],
+    "tired": [
+      146,
+      147,
+      148,
+      149
+    ],
+    "cold": [
+      150,
+      151,
+      152,
+      153
+    ],
+    "confused": [
+      154,
+      155,
+      156,
+      157,
+      158,
+      159
+    ],
+    "proud": [
+      160,
+      161,
+      162,
+      163
     ]
-  },
-  "sheet": {
-    "file": "pet-sheet.png",
-    "webp": "pet-sheet.webp",
-    "frameW": 256,
-    "frameH": 256,
-    "cols": 8,
-    "rows": 12
   }
 }

@@ -88,6 +88,35 @@
           </template>
         </div>
         <p class="focus-tip" :class="{ warn: distracted }">{{ focusTip }}</p>
+
+        <!-- 当日专注进度 -->
+        <div class="focus-progress">
+          <div class="fp-row">
+            <span>今日专注</span>
+            <span class="fp-val">{{ focusMinToday }} 分钟 · {{ pomodoroToday }} 番茄 · 连续 {{ streakToday }} 天</span>
+          </div>
+          <div class="fp-bar"><div class="fp-fill" :style="{ width: goalProgressPct + '%' }"></div></div>
+          <div class="fp-goal">{{ goalText }} · 已完成 {{ goalProgressPct }}%</div>
+        </div>
+
+        <!-- 学习监督动作 · 调试面板 -->
+        <div class="focus-debug">
+          <button class="debug-toggle" type="button" @click="showDebug = !showDebug">
+            <el-icon><ChevronDown v-if="!showDebug" /><ChevronUp v-else /></el-icon>
+            学习监督动作（{{ studyActions.length }}）· 逐个验证
+          </button>
+          <div v-if="showDebug" class="debug-grid">
+            <button
+              v-for="a in studyActions"
+              :key="a.event"
+              class="debug-chip"
+              type="button"
+              :title="a.event"
+              @click="debugTrigger(a.event)"
+            >{{ a.label }}</button>
+            <button class="debug-chip clear" type="button" @click="clearToday">清空今日统计</button>
+          </div>
+        </div>
       </div>
       <StudyPet :level="dashboard.level" :xp="dashboard.xp" />
 
@@ -257,13 +286,17 @@ import {
   Timer,
   Play,
   Pause,
-  RotateCcw
+  RotateCcw,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-vue-next'
 import { getDashboard, generateTasks, getAchievements, type Dashboard, type Achievement, type StudyTask } from '@/api/learning'
 import { useAuthStore } from '@/stores/auth'
 import { resolveFileUrl } from '@/api/user'
 import StudyPet from '@/components/StudyPet.vue'
 import { useStudySession } from '@/composables/useStudySession'
+// @ts-ignore - JSON 资源由 Vite 直接提供
+import petConfig from '@/components/petConfig.json'
 
 const {
   phase,
@@ -275,8 +308,23 @@ const {
   focusTip,
   start,
   pause,
-  reset
+  reset,
+  focusMinToday,
+  pomodoroToday,
+  streakToday,
+  goalText,
+  goalProgressPct,
+  debugTrigger,
+  clearToday
 } = useStudySession()
+
+// 全部 20 个学习监督动作（动画 trigger + 中文标签），用于调试面板逐个验证
+const studyActions = computed(() =>
+  Object.values(petConfig.animations as Record<string, any>)
+    .filter((a) => a.trigger)
+    .map((a) => ({ event: a.trigger as string, label: (a.triggerLabel as string) || (a.name as string) }))
+)
+const showDebug = ref(false)
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -480,6 +528,33 @@ onMounted(() => {
 .focus-btn.ghost { flex: 0 0 auto; }
 .focus-tip { font-size: var(--text-xs); color: var(--text-secondary); line-height: 1.5; margin: 0; }
 .focus-tip.warn { color: var(--warning); font-weight: 600; }
+
+/* 当日专注进度 */
+.focus-progress { display: flex; flex-direction: column; gap: 4px; margin-top: var(--space-xs); }
+.fp-row { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-sm); }
+.fp-row > span:first-child { font-size: var(--text-xs); color: var(--text-muted); font-weight: 600; }
+.fp-val { font-size: var(--text-xs); color: var(--text-secondary); }
+.fp-bar { height: 6px; background: var(--surface-3); border-radius: var(--radius-full); overflow: hidden; }
+.fp-fill { height: 100%; background: var(--brand-gradient); border-radius: var(--radius-full); transition: width 0.6s var(--ease-out); }
+.fp-goal { font-size: var(--text-xs); color: var(--text-muted); }
+
+/* 学习监督动作调试面板 */
+.focus-debug { margin-top: var(--space-md); border-top: 1px dashed var(--divider); padding-top: var(--space-md); }
+.debug-toggle {
+  display: inline-flex; align-items: center; gap: 4px;
+  font: inherit; font-size: var(--text-xs); font-weight: 600; cursor: pointer;
+  background: none; border: none; color: var(--primary-600); padding: 0;
+}
+.debug-toggle :deep(.el-icon) { font-size: 16px; }
+.debug-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--space-sm); }
+.debug-chip {
+  font: inherit; font-size: 11px; cursor: pointer;
+  padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface-2); color: var(--text-secondary);
+  transition: transform var(--duration-fast), border-color var(--duration-fast), background var(--duration-fast);
+}
+.debug-chip:hover { transform: translateY(-1px); border-color: var(--primary-200); background: var(--primary-50); color: var(--primary-700); }
+.debug-chip.clear { border-style: dashed; color: var(--text-muted); }
 
 /* ── 每日总结 ── */
 .daily-banner {
