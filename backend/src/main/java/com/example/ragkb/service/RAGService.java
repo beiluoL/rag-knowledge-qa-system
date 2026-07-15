@@ -6,11 +6,13 @@ import com.example.ragkb.model.entity.Message;
 import com.example.ragkb.repository.ChunkEmbeddingRepository;
 import com.example.ragkb.repository.KnowledgeBaseRepository;
 import com.example.ragkb.repository.MessageRepository;
+import com.example.ragkb.service.ConversationConfigService;
 import com.example.ragkb.service.KnowledgeBaseService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -34,19 +36,22 @@ public class RAGService {
     private final MessageRepository messageRepository;
     private final KnowledgeBaseRepository knowledgeBaseRepository;
     private final KnowledgeBaseService knowledgeBaseService;
+    private final ConversationConfigService configService;
 
     public RAGService(EmbeddingService embeddingService,
                        ChunkEmbeddingRepository embeddingRepository,
                        AiFrameworkRouter aiProvider,
                        MessageRepository messageRepository,
                        KnowledgeBaseRepository knowledgeBaseRepository,
-                       KnowledgeBaseService knowledgeBaseService) {
+                       KnowledgeBaseService knowledgeBaseService,
+                       ConversationConfigService configService) {
         this.embeddingService = embeddingService;
         this.embeddingRepository = embeddingRepository;
         this.aiProvider = aiProvider;
         this.messageRepository = messageRepository;
         this.knowledgeBaseRepository = knowledgeBaseRepository;
         this.knowledgeBaseService = knowledgeBaseService;
+        this.configService = configService;
     }
 
     @Value("${app.rag.top-k}")
@@ -57,12 +62,6 @@ public class RAGService {
 
     @Value("${app.rag.max-history-rounds}")
     private int maxHistoryRounds;
-
-    @Value("${app.rag.hybrid-enabled:true}")
-    private boolean hybridEnabled;
-
-    @Value("${app.rag.rrf-k:60}")
-    private int rrfK;
 
     public int getTopK() { return topK; }
     public int getMaxHistoryRounds() { return maxHistoryRounds; }
@@ -145,7 +144,7 @@ public class RAGService {
         // 1. 混合检索（使用传入的向量，避免重复调用 embeddingService）
         List<ReferenceDTO> references = retrieve(question, questionVector, kbIds);
         log.info("混合检索返回 {} 条结果（混合检索: {}，知识库: {}），阈值: {}",
-                references.size(), hybridEnabled, knowledgeBaseId, similarityThreshold);
+                references.size(), configService.isHybridEnabled(), knowledgeBaseId, similarityThreshold);
 
         // 2. 构建参考资料上下文
         StringBuilder contextBuilder = new StringBuilder();
@@ -171,30 +170,33 @@ public class RAGService {
     }
 
     /**
-     * 检索：向量语义搜索 + 关键词全文搜索，RRF 融合
+     * 检索：向量语义搜索 + 关键词词法搜索，RRF 融合。
+     * 混合检索开关与 RRF 常数 k 由后台「对话配置」实时控制（ConversationConfigService）。
      */
     private List<ReferenceDTO> retrieve(String keyword, String questionVector, List<Long> kbIds) {
-        if (!hybridEnabled) {
+        if (!configService.isHybridEnabled()) {
             return embeddingRepository.semanticSearch(questionVector, topK, similarityThreshold, kbIds);
         }
         int candidate = topK * 3; // 召回候选，融合后取 Top-K
         List<ReferenceDTO> semantic = embeddingRepository.semanticSearch(questionVector, candidate, similarityThreshold, kbIds);
         List<ReferenceDTO> keywordResults = embeddingRepository.keywordSearch(keyword, candidate, kbIds);
-        return rrfFuse(semantic, keywordResults, topK);
+        return rrfFuse(semantic, keywordResults, topK, configService.getRrfK());
     }
 
     /**
      * RRF（Reciprocal Rank Fusion）融合两种召回结果。
      * 融合分 = Σ 1/(k + rank)，与具体相似度数值无关，避免跨渠道分数不可比。
+     *
+     * @param rrfK RRF 融合常数（来自后台配置）
      */
     private List<ReferenceDTO> rrfFuse(List<ReferenceDTO> semantic,
-                                       List<ReferenceDTO> keyword, int topK) {
+                                       List<ReferenceDTO> keyword, int topK, int rrfK) {
         Map<Long, Double> fused = new HashMap<>();
         Map<Long, ReferenceDTO> best = new LinkedHashMap<>(); // 保留首个出现的引用（语义优先）
         Map<Long, Double> semanticScore = new HashMap<>();
 
-        accumulate(semantic, fused, best, semanticScore);
-        accumulate(keyword, fused, best, semanticScore);
+        accumulate(semantic, fused, best, semanticScore, rrfK);
+        accumulate(keyword, fused, best, semanticScore, rrfK);
 
         if (fused.isEmpty()) return List.of();
 
@@ -223,7 +225,7 @@ public class RAGService {
     }
 
     private void accumulate(List<ReferenceDTO> list, Map<Long, Double> fused,
-                            Map<Long, ReferenceDTO> best, Map<Long, Double> semanticScore) {
+                            Map<Long, ReferenceDTO> best, Map<Long, Double> semanticScore, int rrfK) {
         for (int i = 0; i < list.size(); i++) {
             ReferenceDTO r = list.get(i);
             double s = 1.0 / (rrfK + i + 1);
@@ -240,6 +242,13 @@ public class RAGService {
      */
     public String generateAnswer(String systemPrompt, String userMessage) {
         return aiProvider.chat(systemPrompt, userMessage);
+    }
+
+    /**
+     * 流式生成回答（按当前框架 + 模式），逐 chunk 推送
+     */
+    public Flux<String> generateAnswerStream(String systemPrompt, String userMessage) {
+        return aiProvider.chatStream(systemPrompt, userMessage);
     }
 
     /**

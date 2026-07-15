@@ -142,6 +142,7 @@
               <el-dropdown-item command="review"><el-icon><Calendar /></el-icon>复习计划</el-dropdown-item>
               <el-dropdown-item v-if="authStore.isAdmin" command="admin"><el-icon><Wrench /></el-icon>知识库管理</el-dropdown-item>
               <el-dropdown-item v-if="authStore.isAdmin" command="dashboard"><el-icon><BarChart3 /></el-icon>系统管理</el-dropdown-item>
+              <el-dropdown-item command="settings"><el-icon><Settings /></el-icon>系统设置</el-dropdown-item>
               <el-dropdown-item command="logout" divided><el-icon><LogOut /></el-icon>退出登录</el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -225,13 +226,13 @@
             <el-avatar v-else :size="36" class="ai-avatar">AI</el-avatar>
           </div>
           <div class="message-body">
-            <div class="message-content markdown-body" v-html="renderMarkdown(msg.content)" />
+            <div class="message-content markdown-body" v-html="renderMarkdown(msg.content)" @click="onContentClick" @keydown="onContentKey" />
             <!-- 引用来源 -->
             <div v-if="msg.references && msg.references.length > 0" class="references-section">
               <el-divider content-position="left">
                 <span class="ref-divider-label"><el-icon><Library /></el-icon> 参考来源</span>
               </el-divider>
-              <div v-for="(ref, idx) in msg.references" :key="ref.chunkId" class="reference-item">
+              <div v-for="(ref, idx) in msg.references" :key="ref.chunkId" class="reference-item" :data-idx="idx + 1">
                 <el-popover placement="bottom" width="400" trigger="click">
                   <template #reference>
                     <el-tag type="success" class="reference-tag" size="small">
@@ -388,9 +389,12 @@ import {
   BookOpen, Plus, Send, ArrowDown, Search, FileText, AlertTriangle,
   Library, MessageCircle, Pin, ThumbsUp, ThumbsDown, Copy, Menu, PanelLeftClose, PanelLeftOpen,
   User, BookOpenCheck, PenLine, Pencil, Calendar, Wrench, BarChart3, LogOut, Trash2,
-  MoreHorizontal, Share2, Sparkles, ChevronDown
+  MoreHorizontal, Share2, Sparkles, ChevronDown, Settings
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
+import { useSettings } from '@/composables/useSettings'
+
+const { open: openSettings } = useSettings()
 import { getConversations, getConversationMessages, sendMessage as sendChatMessage,
   renameConversation, deleteConversation, feedbackMessage, searchConversations, exportConversation,
   togglePinConversation,
@@ -564,8 +568,46 @@ marked.setOptions({ breaks: true, gfm: true, renderer })
 function renderMarkdown(text: string) {
   if (!text) return ''
   const rawHtml = marked.parse(text) as string
+  // 将答案中的 [n] 引用标记转为可点击锚点，点击后跳转并高亮对应来源卡片
+  const withCites = rawHtml.replace(
+    /(?<![\w\])])\[(\d{1,2})\](?![\w\[])/g,
+    '<sup class="ref-cite" data-ref="$1" role="button" tabindex="0" title="查看引用来源 [$1]">[$1]</sup>'
+  )
   // 企业级 XSS 防护：AI 生成内容经 v-html 渲染前消毒
-  return DOMPurify.sanitize(rawHtml, { USE_PROFILES: { html: true } })
+  return DOMPurify.sanitize(withCites, { USE_PROFILES: { html: true } })
+}
+
+// 点击答案中的 [n] 引用标记 → 滚动并高亮对应来源卡片
+function jumpToReference(citeEl: HTMLElement) {
+  const n = citeEl.getAttribute('data-ref')
+  if (!n) return
+  const body = citeEl.closest('.message-body')
+  const ref = body?.querySelector(`.reference-item[data-idx="${n}"]`) as HTMLElement | null
+  if (!ref) return
+  ref.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  ref.classList.add('ref-flash')
+  window.setTimeout(() => ref.classList.remove('ref-flash'), 1200)
+  // 同步展开该来源的详情气泡，便于直接查看片段
+  const tag = ref.querySelector('.reference-tag') as HTMLElement | null
+  tag?.click()
+}
+
+function onContentClick(e: MouseEvent) {
+  const el = (e.target as HTMLElement).closest('.ref-cite') as HTMLElement | null
+  if (el) {
+    e.preventDefault()
+    jumpToReference(el)
+  }
+}
+
+function onContentKey(e: KeyboardEvent) {
+  if (e.key === 'Enter' || e.key === ' ') {
+    const el = (e.target as HTMLElement).closest('.ref-cite') as HTMLElement | null
+    if (el) {
+      e.preventDefault()
+      jumpToReference(el)
+    }
+  }
 }
 
 function formatDate(dateStr: string) {
@@ -863,6 +905,7 @@ function handleUserAction(cmd: string) {
   else if (cmd === 'review') router.push('/review-plan')
   else if (cmd === 'admin') router.push('/admin/knowledge')
   else if (cmd === 'dashboard') router.push('/admin/dashboard')
+  else if (cmd === 'settings') openSettings()
   else if (cmd === 'logout') {
     authStore.logout()
     router.push('/login')

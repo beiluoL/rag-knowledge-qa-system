@@ -145,6 +145,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   Loader2,
@@ -172,6 +173,15 @@ const quizType = ref<'mc' | 'qa'>('mc')
 const count = ref(5)
 const loading = ref(false)
 const questions = ref<QuizItem[]>([])
+const route = useRoute()
+
+function treeHasId(nodes: KbTreeNode[], id: number): boolean {
+  for (const n of nodes) {
+    if (n.id === id) return true
+    if (n.children && treeHasId(n.children, id)) return true
+  }
+  return false
+}
 
 const renderer = new marked.Renderer()
 renderer.code = function ({ text, lang }: { text: string; lang?: string }) {
@@ -225,7 +235,14 @@ async function generate() {
   }
 }
 
-onMounted(loadKb)
+onMounted(async () => {
+  await loadKb()
+  const qKb = route.query.kb ? Number(route.query.kb) : null
+  if (qKb && treeHasId(kbTree.value, qKb)) {
+    kbId.value = qKb
+    generate()
+  }
+})
 </script>
 
 <style scoped>

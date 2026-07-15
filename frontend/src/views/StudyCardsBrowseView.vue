@@ -28,6 +28,10 @@
                 <el-icon><Milestone /></el-icon> 时间轴
               </el-radio-button>
             </el-radio-group>
+            <el-button :icon="PenLine" :disabled="!selectedKbId"
+              @click="router.push(`/quiz?kb=${selectedKbId}`)">生成测验</el-button>
+            <el-button :icon="CalendarClock" :disabled="!selectedKbId"
+              @click="router.push(`/review-plan?kb=${selectedKbId}`)">复习计划</el-button>
             <el-button type="primary" :icon="Play" :disabled="!selectedKbId"
               @click="router.push(`/learn/list?kb=${selectedKbId}`)">进入学习</el-button>
           </div>
@@ -88,7 +92,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft, List, Milestone, Play, Loader2, Library,
-  FileQuestion, BookOpen, ChevronRight
+  FileQuestion, BookOpen, ChevronRight, PenLine, CalendarClock
 } from 'lucide-vue-next'
 import { getStudyCards, type StudyCard } from '@/api/learning'
 import { listKnowledgeBases } from '@/api/knowledgeBase'

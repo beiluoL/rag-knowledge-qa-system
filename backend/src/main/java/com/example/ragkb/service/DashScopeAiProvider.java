@@ -6,9 +6,18 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import reactor.core.publisher.Flux;
 
 /**
  * 在线模式：调用阿里云百炼 DashScope API（OpenAI 兼容接口）
@@ -17,6 +26,7 @@ import java.util.Map;
 public class DashScopeAiProvider implements AiProvider {
 
     private final RestClient restClient;
+    private final String apiKey;
     private final String chatModel;
     private final String embeddingModel;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -24,6 +34,7 @@ public class DashScopeAiProvider implements AiProvider {
     private static final String BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 
     public DashScopeAiProvider(String apiKey, String chatModel, String embeddingModel) {
+        this.apiKey = apiKey;
         this.chatModel = chatModel;
         this.embeddingModel = embeddingModel;
         this.restClient = RestClient.builder()
@@ -67,6 +78,65 @@ public class DashScopeAiProvider implements AiProvider {
         } catch (Exception e) {
             log.error("DashScope API 调用失败", e);
             throw new RuntimeException("在线 AI 服务调用失败: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public Flux<String> chatStream(String systemPrompt, String userMessage) {
+        Map<String, Object> requestBody = Map.of(
+                "model", chatModel,
+                "messages", List.of(
+                        Map.of("role", "system", "content", systemPrompt),
+                        Map.of("role", "user", "content", userMessage)
+                ),
+                "temperature", 0.3,
+                "max_tokens", 1024,
+                "stream", true
+        );
+        try {
+            String json = objectMapper.writeValueAsString(requestBody);
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(BASE_URL + "/chat/completions"))
+                    .header("Authorization", "Bearer " + apiKey)
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8))
+                    .build();
+
+            HttpClient httpClient = HttpClient.newHttpClient();
+            HttpResponse<InputStream> response = httpClient.send(
+                    request, HttpResponse.BodyHandlers.ofInputStream());
+
+            return Flux.create(sink -> {
+                try (BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        if (!line.startsWith("data:")) {
+                            continue;
+                        }
+                        String data = line.substring(5).trim();
+                        if ("[DONE]".equals(data)) {
+                            break;
+                        }
+                        try {
+                            JsonNode node = objectMapper.readTree(data);
+                            String token = node.path("choices").path(0).path("delta")
+                                    .path("content").asText("");
+                            if (!token.isEmpty()) {
+                                sink.next(token);
+                            }
+                        } catch (Exception ignored) {
+                            // 跳过无法解析的 SSE 数据行
+                        }
+                    }
+                    sink.complete();
+                } catch (Exception e) {
+                    sink.error(e);
+                }
+            });
+        } catch (Exception e) {
+            log.warn("DashScope 流式失败，回退非流式: {}", e.getMessage());
+            return Flux.just(chat(systemPrompt, userMessage));
         }
     }
 

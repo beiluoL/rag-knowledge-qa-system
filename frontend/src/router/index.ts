@@ -80,6 +80,18 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: '代码练习' }
   },
   {
+    path: '/learn/paths',
+    name: 'LearningPaths',
+    component: () => import('@/views/LearningPathView.vue'),
+    meta: { requiresAuth: true, title: '学习路径' }
+  },
+  {
+    path: '/learn/paths/:id',
+    name: 'LearningPathDetail',
+    component: () => import('@/views/LearningPathDetailView.vue'),
+    meta: { requiresAuth: true, title: '学习路径详情' }
+  },
+  {
     path: '/learn/:mode',
     name: 'LearnMode',
     component: () => import('@/views/LearningModeView.vue'),

@@ -29,11 +29,15 @@ public class ConversationConfigController {
     }
 
     /**
-     * 更新对话配置。body 中 aiMode / aiFramework / ragVisualizationEnabled 均可选（只更新提供的字段）。
+     * 更新对话配置。body 中 aiMode / aiFramework / ragVisualizationEnabled / trueSseStreamingEnabled
+     * / hybridEnabled / rrfK 均可选（只更新提供的字段）。
      * 示例：
      * { "aiMode": "online" }
      * { "aiFramework": "langchain4j" }
      * { "ragVisualizationEnabled": false }
+     * { "trueSseStreamingEnabled": false }
+     * { "hybridEnabled": false }
+     * { "rrfK": 40 }
      */
     @PutMapping
     public ResponseEntity<Map<String, Object>> updateConfig(@RequestBody Map<String, Object> body) {
@@ -43,6 +47,19 @@ public class ConversationConfigController {
         if (body.get("ragVisualizationEnabled") != null) {
             ragVisualizationEnabled = Boolean.valueOf(body.get("ragVisualizationEnabled").toString());
         }
-        return ResponseEntity.ok(configService.updateConfig(aiMode, aiFramework, ragVisualizationEnabled));
+        Boolean trueSseStreamingEnabled = null;
+        if (body.get("trueSseStreamingEnabled") != null) {
+            trueSseStreamingEnabled = Boolean.valueOf(body.get("trueSseStreamingEnabled").toString());
+        }
+        Boolean hybridEnabled = null;
+        if (body.get("hybridEnabled") != null) {
+            hybridEnabled = Boolean.valueOf(body.get("hybridEnabled").toString());
+        }
+        Integer rrfK = null;
+        if (body.get("rrfK") != null) {
+            rrfK = Integer.valueOf(body.get("rrfK").toString());
+        }
+        return ResponseEntity.ok(configService.updateConfig(aiMode, aiFramework, ragVisualizationEnabled,
+                trueSseStreamingEnabled, hybridEnabled, rrfK));
     }
 }

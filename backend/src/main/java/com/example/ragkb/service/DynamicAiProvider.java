@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import reactor.core.publisher.Flux;
 
 /**
  * 动态 AI 提供者：运行时切换离线/在线模式
@@ -50,6 +51,11 @@ public class DynamicAiProvider implements AiProvider {
     @Override
     public String chat(String systemPrompt, String userMessage) {
         return current().chat(systemPrompt, userMessage);
+    }
+
+    @Override
+    public Flux<String> chatStream(String systemPrompt, String userMessage) {
+        return current().chatStream(systemPrompt, userMessage);
     }
 
     @Override

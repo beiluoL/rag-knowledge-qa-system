@@ -120,6 +120,12 @@
           <div class="mode-desc">基于已学知识库进行 AI 问答，边学边问巩固所学</div>
           <div class="mode-go">进入 <el-icon><ArrowRight /></el-icon></div>
         </button>
+        <button class="mode-card" type="button" role="listitem" aria-label="打开学习路径" @click="goPath('/learn/paths')">
+          <div class="mode-icon"><el-icon><Route /></el-icon></div>
+          <div class="mode-name">学习路径</div>
+          <div class="mode-desc">把知识库整理成有序课程路线，按节点逐章推进并追踪进度</div>
+          <div class="mode-go">进入 <el-icon><ArrowRight /></el-icon></div>
+        </button>
       </div>
 
       <!-- 今日任务 + 成就 -->
@@ -209,7 +215,8 @@ import {
   Trophy,
   Code2,
   Layers,
-  MessageCircle
+  MessageCircle,
+  Route
 } from 'lucide-vue-next'
 import { getDashboard, generateTasks, getAchievements, type Dashboard, type Achievement, type StudyTask } from '@/api/learning'
 

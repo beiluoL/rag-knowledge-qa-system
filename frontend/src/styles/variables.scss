@@ -120,3 +120,58 @@
   --z-toast: 500;
   --z-tooltip: 600;
 }
+
+/* ═══════════════════════════════════════════
+   暗色主题令牌（data-theme="dark"）
+   保持蓝色品牌调，浅色档改为暗蓝以适配深色背景
+   ═══════════════════════════════════════════ */
+[data-theme="dark"] {
+  --primary-50: #14223b;
+  --primary-100: #1c3258;
+  --primary-200: #25406f;
+  --primary-300: #2f5aa8;
+  --primary-400: #3b82f6;
+  --primary-500: #60a5fa;
+  --primary-600: #3b82f6;
+  --primary-700: #2563eb;
+  --primary-800: #1d4ed8;
+  --primary-900: #1e3a8a;
+
+  --success: #34d399;
+  --success-light: #064e3b;
+  --warning: #fbbf24;
+  --warning-light: #422006;
+  --danger: #f87171;
+  --danger-light: #450a0a;
+  --info: #94a3b8;
+  --info-light: #1e293b;
+
+  --bg: #0b1120;
+  --surface: #0f172a;
+  --surface-2: #131c2e;
+  --surface-3: #1e293b;
+  --border: #1e293b;
+  --divider: #1e293b;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --text-inverse: #0b1120;
+
+  --brand-gradient: linear-gradient(135deg, var(--primary-500), var(--primary-600));
+  --brand-gradient-soft: linear-gradient(135deg, rgba(59, 130, 246, 0.18), rgba(37, 99, 235, 0.18));
+
+  --border-strong: #334155;
+  --border-subtle: #1e293b;
+
+  --ring: var(--primary-400);
+  --ring-offset: var(--surface);
+
+  /* 深色阴影：以黑色为底，弱化浮起感 */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.30);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+  --shadow-pop: 0 24px 48px rgba(0, 0, 0, 0.60);
+  --shadow-colored: 0 8px 20px rgba(59, 130, 246, 0.30);
+  --shadow-primary: 0 10px 24px rgba(59, 130, 246, 0.40);
+}

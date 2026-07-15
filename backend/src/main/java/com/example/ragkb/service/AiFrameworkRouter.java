@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import reactor.core.publisher.Flux;
 
 /**
  * AI 框架路由器：在运行时按 activeFramework 在
@@ -61,6 +62,11 @@ public class AiFrameworkRouter implements AiProvider {
     @Override
     public String chat(String systemPrompt, String userMessage) {
         return active().chat(systemPrompt, userMessage);
+    }
+
+    @Override
+    public Flux<String> chatStream(String systemPrompt, String userMessage) {
+        return active().chatStream(systemPrompt, userMessage);
     }
 
     @Override

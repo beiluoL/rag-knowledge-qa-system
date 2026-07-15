@@ -90,24 +90,24 @@ public class ChunkEmbeddingRepository {
     }
 
     /**
-     * 关键词全文搜索（基于 PostgreSQL tsvector + to_tsquery OR 分词）
-     * 用于混合检索：与向量搜索结果融合，提升关键词精确匹配能力。
-     * 将查询按词/字切分后用 OR 连接，避免 plainto_tsquery 的 AND 语义导致的召回过低。
+     * 关键词词法搜索：基于 pg_trgm 的 word_similarity（查询 vs 文本中最相似子串）。
+     * 与 to_tsvector('simple') 不同，pg_trgm 对中文子串匹配有效；且 word_similarity 衡量
+     * 「文本中是否存在与查询相似的片段」，当查询作为子串出现时得分≈1.0，从而真正召回中文关键词。
+     * 用于混合检索：与向量搜索结果做 RRF 融合，补足关键词精确匹配能力。
      *
      * @param keyword 搜索关键词
      * @param topK    返回最大条数
-     * @return 按相关度排序的文档片段列表
+     * @return 按相似度排序的文档片段列表
      */
     public List<ReferenceDTO> keywordSearch(String keyword, int topK) {
         return keywordSearch(keyword, topK, null);
     }
 
     /**
-     * 关键词全文搜索（可按知识库隔离）
+     * 关键词词法搜索（可按知识库隔离）
      */
     public List<ReferenceDTO> keywordSearch(String keyword, int topK, List<Long> kbIds) {
-        String tsQuery = buildOrTsQuery(keyword);
-        if (tsQuery == null) {
+        if (keyword == null || keyword.isBlank()) {
             return List.of();
         }
         String kbFilter = (kbIds != null && !kbIds.isEmpty())
@@ -118,38 +118,24 @@ public class ChunkEmbeddingRepository {
                 c.content,
                 c.document_id,
                 d.title AS document_title,
-                ts_rank(to_tsvector('simple', c.content), to_tsquery('simple', ?)) AS similarity
+                word_similarity(?, c.content) AS similarity
             FROM chunks c
             JOIN documents d ON d.id = c.document_id
-            WHERE to_tsvector('simple', c.content) @@ to_tsquery('simple', ?)
+            WHERE word_similarity(?, c.content) >= ?
             %s
             ORDER BY similarity DESC
             LIMIT ?
         """.formatted(kbFilter);
         List<Object> params = new ArrayList<>();
-        params.add(tsQuery);
-        params.add(tsQuery);
+        params.add(keyword);
+        params.add(keyword);
+        params.add(KEYWORD_SIMILARITY_THRESHOLD);
         params.add(topK);
         return jdbcTemplate.query(sql, params.toArray(), this::mapToReferenceDTO);
     }
 
-    /**
-     * 将关键词拆分为多个词元并以 OR（|）连接，构造 tsquery。
-     * 仅保留长度 >= 2 的词元，去除单引号防止 tsquery 注入。
-     * CJK 连续字符作为一个短语词元保留，拉丁/数字单独成词。
-     */
-    private String buildOrTsQuery(String keyword) {
-        if (keyword == null || keyword.isBlank()) return null;
-        String[] raw = keyword.split("[^\\p{L}\\p{N}]+");
-        List<String> terms = new ArrayList<>();
-        for (String t : raw) {
-            t = t.trim().replace("'", "");
-            if (t.isEmpty() || t.length() < 2) continue;
-            terms.add("'" + t + "'");
-        }
-        if (terms.isEmpty()) return null;
-        return String.join(" | ", terms);
-    }
+    /** 中文词法召回阈值：word_similarity 在查询作为子串出现时≈1.0，近义片段 0.5~0.8，低于此视为不相关。 */
+    private static final double KEYWORD_SIMILARITY_THRESHOLD = 0.4;
 
     private ReferenceDTO mapToReferenceDTO(ResultSet rs, int rowNum) throws SQLException {
         return ReferenceDTO.builder()

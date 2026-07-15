@@ -81,6 +81,57 @@
         </div>
       </section>
 
+      <!-- 4) 真 SSE 流式 -->
+      <section class="ui-card cfg-card">
+        <div class="cfg-card-head">
+          <span class="cfg-icon icon-md"><Zap /></span>
+          <div class="cfg-head-text">
+            <h2 class="cfg-title">真 SSE 流式</h2>
+            <p class="cfg-desc">
+              开启：模型边生成边逐字推送（真流式）。关闭：后端先取完整答案再分块模拟逐字，
+              前端消费方式不变。
+            </p>
+          </div>
+          <el-switch
+            v-model="form.trueSseStreamingEnabled"
+            class="cfg-switch"
+            aria-label="真 SSE 流式开关"
+          />
+        </div>
+      </section>
+
+      <!-- 5) 混合检索 -->
+      <section class="ui-card cfg-card">
+        <div class="cfg-card-head">
+          <span class="cfg-icon icon-md"><Search /></span>
+          <div class="cfg-head-text">
+            <h2 class="cfg-title">混合检索</h2>
+            <p class="cfg-desc">
+              开启后，回答检索同时走「向量语义 + 中文关键词（pg_trgm 三元组）」双路召回，再用 RRF 融合排序，
+              显著提升中文关键词命中。关闭则仅用向量语义检索。
+            </p>
+          </div>
+          <el-switch
+            v-model="form.hybridEnabled"
+            class="cfg-switch"
+            aria-label="混合检索开关"
+          />
+        </div>
+        <div class="cfg-sub">
+          <label class="cfg-sub-label" for="rrfK">RRF 融合常数 k</label>
+          <el-input-number
+            id="rrfK"
+            v-model="form.rrfK"
+            :min="1"
+            :max="200"
+            :step="1"
+            controls-position="right"
+            class="cfg-num"
+          />
+          <span class="cfg-sub-hint">越大代表越偏向高排名结果（默认 60）</span>
+        </div>
+      </section>
+
       <!-- 当前 embedding 维度（只读） -->
       <section class="ui-card cfg-card">
         <div class="cfg-card-head">
@@ -107,7 +158,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
-  Cpu, Workflow, Eye, Settings, MessageSquare, Loader2
+  Cpu, Workflow, Eye, Settings, MessageSquare, Loader2, Zap, Search
 } from 'lucide-vue-next'
 import {
   getConversationConfig, updateConversationConfig,
@@ -125,10 +176,16 @@ const form = reactive<{
   aiMode: string
   aiFramework: string
   ragVisualizationEnabled: boolean
+  trueSseStreamingEnabled: boolean
+  hybridEnabled: boolean
+  rrfK: number
 }>({
   aiMode: 'offline',
   aiFramework: 'spring-ai',
-  ragVisualizationEnabled: true
+  ragVisualizationEnabled: true,
+  trueSseStreamingEnabled: true,
+  hybridEnabled: true,
+  rrfK: 60
 })
 
 async function loadConfig() {
@@ -140,6 +197,9 @@ async function loadConfig() {
     form.aiMode = data.aiMode
     form.aiFramework = data.aiFramework
     form.ragVisualizationEnabled = data.ragVisualizationEnabled
+    form.trueSseStreamingEnabled = data.trueSseStreamingEnabled
+    form.hybridEnabled = data.hybridEnabled
+    form.rrfK = data.rrfK
   } catch (e: any) {
     error.value = e.response?.data?.message || '加载对话配置失败'
   } finally {
@@ -153,7 +213,10 @@ async function handleSave() {
     const { data } = await updateConversationConfig({
       aiMode: form.aiMode,
       aiFramework: form.aiFramework,
-      ragVisualizationEnabled: form.ragVisualizationEnabled
+      ragVisualizationEnabled: form.ragVisualizationEnabled,
+      trueSseStreamingEnabled: form.trueSseStreamingEnabled,
+      hybridEnabled: form.hybridEnabled,
+      rrfK: form.rrfK
     })
     config.value = data
     ElMessage.success('对话配置已保存')
@@ -211,6 +274,19 @@ onMounted(loadConfig)
 }
 
 .cfg-switch { margin-left: auto; }
+
+.cfg-sub {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-top: var(--space-lg);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--divider);
+  flex-wrap: wrap;
+}
+.cfg-sub-label { font-size: 0.875rem; font-weight: 600; color: var(--text-primary); }
+.cfg-num { width: 140px; }
+.cfg-sub-hint { font-size: 0.75rem; color: var(--text-muted); }
 
 .cfg-tip { margin-top: var(--space-md); }
 

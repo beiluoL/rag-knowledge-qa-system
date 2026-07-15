@@ -3,6 +3,7 @@ package com.example.ragkb.controller;
 import com.example.ragkb.model.dto.*;
 import com.example.ragkb.model.entity.Conversation;
 import com.example.ragkb.service.ConversationService;
+import com.example.ragkb.service.ConversationConfigService;
 import com.example.ragkb.service.EmbeddingService;
 import com.example.ragkb.service.RAGService;
 import com.example.ragkb.service.RAGService.RAGContext;
@@ -14,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
 
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
@@ -31,17 +33,20 @@ public class ChatController {
     private final EmbeddingService embeddingService;
     private final QueryRewriter queryRewriter;
     private final ObjectMapper objectMapper;
+    private final ConversationConfigService configService;
 
     public ChatController(RAGService ragService,
                            ConversationService conversationService,
                            EmbeddingService embeddingService,
                            QueryRewriter queryRewriter,
-                           ObjectMapper objectMapper) {
+                           ObjectMapper objectMapper,
+                           ConversationConfigService configService) {
         this.ragService = ragService;
         this.conversationService = conversationService;
         this.embeddingService = embeddingService;
         this.queryRewriter = queryRewriter;
         this.objectMapper = objectMapper;
+        this.configService = configService;
     }
 
     @PostMapping("/send")
@@ -161,15 +166,42 @@ public class ChatController {
                     "框架: " + ragService.getCurrentFramework() + "，模型: " + ragService.getCurrentMode());
             writer.flush();
 
-            // 7. 生成回答（流式）
-            String answer = ragService.generateAnswer(
-                    ragContext.systemPrompt(), ragContext.userMessage());
-            if (answer != null && !answer.isBlank()) {
-                for (int i = 0; i < answer.length(); i++) {
-                    String ch = answer.substring(i, i + 1);
-                    sendSSE(writer, "content", ch);
+            // 7. 生成回答
+            //    生成策略由「对话配置」中的 trueSseStreamingEnabled 决定（管理员可在后台实时切换）：
+            //      true  -> 真 SSE 流式：模型边生成边按 chunk 推送 content 事件
+            //      false -> 模拟逐字：先取完整答案，再分块推送 content 事件（前端消费方式不变）
+            String answer;
+            if (configService.isTrueSseStreamingEnabled()) {
+                StringBuilder answerBuf = new StringBuilder();
+                ragService.generateAnswerStream(ragContext.systemPrompt(), ragContext.userMessage())
+                        .doOnNext(chunk -> {
+                            if (chunk != null && !chunk.isEmpty()) {
+                                answerBuf.append(chunk);
+                                sendSSE(writer, "content", chunk);
+                                writer.flush();
+                            }
+                        })
+                        .blockLast();  // 阻塞至流结束（servlet 线程同步写出）
+                answer = answerBuf.toString();
+            } else {
+                // 模拟逐字：先完整生成，再按小段推送，制造打字机效果
+                String full = ragService.generateAnswer(ragContext.systemPrompt(), ragContext.userMessage());
+                int len = full.length();
+                int cursor = 0;
+                int chunkSize = 2; // 每次推送 2 个字符，模拟逐字
+                while (cursor < len) {
+                    int end = Math.min(cursor + chunkSize, len);
+                    sendSSE(writer, "content", full.substring(cursor, end));
                     writer.flush();
+                    cursor = end;
+                    try {
+                        Thread.sleep(12); // 模拟打字延迟
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
                 }
+                answer = full;
             }
 
             long t3Done = System.currentTimeMillis();

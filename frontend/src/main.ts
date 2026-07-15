@@ -7,7 +7,11 @@ import zhCn from 'element-plus/es/locale/lang/zh-cn'
 
 import App from './App.vue'
 import router from './router'
+import { initTheme } from './theme'
 import './styles/global.scss'
+
+// 在首屏渲染前应用主题，避免闪烁（FOUC）
+initTheme()
 
 const app = createApp(App)
 

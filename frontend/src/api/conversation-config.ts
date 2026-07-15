@@ -4,6 +4,9 @@ export interface ConversationConfig {
   aiMode: string
   aiFramework: string
   ragVisualizationEnabled: boolean
+  trueSseStreamingEnabled: boolean
+  hybridEnabled: boolean
+  rrfK: number
   dimension: number
 }
 
@@ -11,6 +14,9 @@ export interface UpdateConversationConfigPayload {
   aiMode?: string
   aiFramework?: string
   ragVisualizationEnabled?: boolean
+  trueSseStreamingEnabled?: boolean
+  hybridEnabled?: boolean
+  rrfK?: number
 }
 
 export function getConversationConfig() {
