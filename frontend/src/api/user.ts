@@ -47,7 +47,7 @@ export function uploadAvatar(file: File) {
 export function resolveFileUrl(path?: string | null): string {
   if (!path) return ''
   if (/^https?:\/\//.test(path)) return path
-  const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
+  const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:9090/api'
   const origin = base.replace(/\/api\/?$/, '')
   return origin + path
 }

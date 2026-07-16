@@ -144,7 +144,7 @@ async function openStream() {
   if (closedByUser) return
   const token = localStorage.getItem('accessToken')
   if (!token) return
-  const base = (request.defaults.baseURL as string) || 'http://localhost:8080/api'
+  const base = (request.defaults.baseURL as string) || 'http://localhost:9090/api'
   abort = new AbortController()
   try {
     const resp = await fetch(`${base}/notifications/stream`, {

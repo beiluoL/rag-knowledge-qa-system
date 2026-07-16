@@ -4,7 +4,7 @@ import { ElMessage } from 'element-plus'
 import router from '@/router'
 
 // API 基础路径：Docker 模式使用相对路径（Nginx 反向代理），本地开发使用绝对路径
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:9090/api'
 
 const service: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,

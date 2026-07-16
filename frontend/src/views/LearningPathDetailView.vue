@@ -92,7 +92,14 @@
       </ol>
     </template>
 
-    <el-alert v-else type="error" :closable="false" show-icon :title="error || '路径不存在'" />
+    <el-alert v-else type="error" :closable="false" show-icon :title="error || '路径不存在'">
+      <template #default>
+        <div class="error-box">
+          <span>{{ error || '路径不存在或已被删除' }}</span>
+          <el-button size="small" type="primary" plain @click="load">重试</el-button>
+        </div>
+      </template>
+    </el-alert>
   </div>
 </template>
 
@@ -160,7 +167,12 @@ async function load() {
     const { data } = await getLearningPathDetail(id)
     detail.value = data
   } catch (e: any) {
-    error.value = e.response?.data?.message || '加载失败'
+    // 网络层错误（后端未启动 / 端口不通）没有 response，给出可操作的提示
+    if (!e.response) {
+      error.value = '无法连接后端服务，请确认服务已启动后重试'
+    } else {
+      error.value = e.response?.data?.message || '加载失败'
+    }
   } finally {
     loading.value = false
   }
@@ -248,6 +260,9 @@ async function goLearn(pathId: number, nodeId: number) {
 .node-actions { display: flex; flex-wrap: wrap; gap: 6px; flex-shrink: 0; }
 
 .loading-spin { color: var(--text-muted); }
+
+.error-box { display: flex; align-items: center; gap: var(--space-md); flex-wrap: wrap; }
+.error-box .el-button { margin: 0; }
 
 @media (max-width: 560px) {
   .node-item { flex-direction: column; align-items: stretch; }

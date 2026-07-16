@@ -180,7 +180,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { BookText, Code, Package, Scale, GraduationCap, HeartPulse, Folder, FolderOpen, Plus, Upload, Library, X, Search, FileText } from 'lucide-vue-next'
 import {
