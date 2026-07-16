@@ -204,6 +204,9 @@
             {{ aiMode === 'online' ? '在线模式' : '离线模式' }} · {{ aiFramework === 'langchain4j' ? 'LangChain4j' : 'Spring AI' }}
           </span>
         </div>
+        <div class="chat-header-right">
+          <NotificationBell />
+        </div>
       </header>
 
       <div v-if="!currentConversationId && messages.length === 0" class="empty-chat">
@@ -404,6 +407,7 @@ import {
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { resolveFileUrl } from '@/api/user'
+import NotificationBell from '@/components/NotificationBell.vue'
 import { useSettings } from '@/composables/useSettings'
 
 const { open: openSettings } = useSettings()
@@ -1370,6 +1374,12 @@ onMounted(async () => {
   flex-direction: column;
   min-width: 0;
   flex: 1;
+}
+.chat-header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-left: auto;
 }
 .chat-title {
   font-size: var(--text-base);

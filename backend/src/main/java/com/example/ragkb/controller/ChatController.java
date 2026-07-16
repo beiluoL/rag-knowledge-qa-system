@@ -5,6 +5,7 @@ import com.example.ragkb.model.entity.Conversation;
 import com.example.ragkb.service.ConversationService;
 import com.example.ragkb.service.ConversationConfigService;
 import com.example.ragkb.service.EmbeddingService;
+import com.example.ragkb.service.MemoryService;
 import com.example.ragkb.service.RAGService;
 import com.example.ragkb.service.RAGService.RAGContext;
 import com.example.ragkb.service.QueryRewriter;
@@ -34,19 +35,22 @@ public class ChatController {
     private final QueryRewriter queryRewriter;
     private final ObjectMapper objectMapper;
     private final ConversationConfigService configService;
+    private final MemoryService memoryService;
 
     public ChatController(RAGService ragService,
                            ConversationService conversationService,
                            EmbeddingService embeddingService,
                            QueryRewriter queryRewriter,
                            ObjectMapper objectMapper,
-                           ConversationConfigService configService) {
+                           ConversationConfigService configService,
+                           MemoryService memoryService) {
         this.ragService = ragService;
         this.conversationService = conversationService;
         this.embeddingService = embeddingService;
         this.queryRewriter = queryRewriter;
         this.objectMapper = objectMapper;
         this.configService = configService;
+        this.memoryService = memoryService;
     }
 
     @PostMapping("/send")
@@ -122,8 +126,10 @@ public class ChatController {
             writer.flush();
 
             // 传入已计算的 questionVector 与知识库 ID，避免 RAGService 内部重复向量化
+            // 注入用户长期记忆（跨会话偏好/摘要），让 AI 记住用户
+            String memoryContext = memoryService.getMemoryContextPrompt(userId);
             RAGContext ragContext = ragService.preparePrompt(
-                    conversationId, question, request.getKnowledgeBaseId(), questionVector);
+                    conversationId, question, request.getKnowledgeBaseId(), questionVector, memoryContext);
             long t2Done = System.currentTimeMillis();
 
             List<ReferenceDTO> references = ragContext.references();
@@ -212,6 +218,10 @@ public class ChatController {
             // 8. 保存 AI 回答
             conversationService.saveAssistantMessage(
                     conversationId, answer, ragContext.references());
+
+            // 9. 对话记忆增强：异步抽取用户偏好 + 超长对话摘要（不阻塞 SSE 响应）
+            memoryService.extractMemoriesAsync(userId, conversationId, question, answer);
+            memoryService.maybeSummarizeAsync(userId, conversationId);
 
             // 9. 完成（总耗时）
             long totalTime = t3Done - t1;

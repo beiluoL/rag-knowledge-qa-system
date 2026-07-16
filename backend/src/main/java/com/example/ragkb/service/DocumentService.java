@@ -54,6 +54,10 @@ public class DocumentService {
     /** AI 框架路由器：用于自动加工（摘要 / 关键词）调用大模型 */
     private final AiFrameworkRouter aiRouter;
     private final ObjectMapper objectMapper;
+    /** 多模态解析：图片OCR/表格 + 音视频转写 */
+    private final MultimodalExtractor multimodalExtractor;
+    /** 通知中心：文档处理完成后推送通知 */
+    private final NotificationService notificationService;
 
     @Value("${app.ai.auto-enrich:true}")
     private boolean autoEnrich;
@@ -141,8 +145,17 @@ public class DocumentService {
             doc.setStatus(DocumentStatus.PROCESSING);
             documentRepository.save(doc);
 
-            // 1. 使用 Tika 解析文档
-            String text = parseDocument(doc.getFilePath(), doc.getFileType());
+            // 1. 解析文档：多模态走专用解析器，其余走 Tika
+            String text;
+            if (isMultimodal(doc.getFileType())) {
+                Path mediaPath = Path.of(doc.getFilePath());
+                text = multimodalExtractor.extract(mediaPath, doc.getFileType());
+                doc.setMediaUrl(doc.getFilePath());
+                doc.setParseSource(parseSourceOf(doc.getFileType()));
+                documentRepository.save(doc);
+            } else {
+                text = parseDocument(doc.getFilePath(), doc.getFileType());
+            }
             if (text == null || text.isBlank()) {
                 throw new BusinessException("文档内容为空或无法解析");
             }
@@ -155,6 +168,18 @@ public class DocumentService {
                 enrichDocument(doc, text);
             }
             log.info("文档处理完成: id={}, chunks={}", documentId, doc.getChunkCount());
+
+            // 7. 通知上传者：文档处理完成（仅真实上传、有归属用户时推送）
+            if (doc.getUploadedBy() != null) {
+                try {
+                    notificationService.create(doc.getUploadedBy(), "document_processed",
+                            "文档处理完成",
+                            "《" + doc.getTitle() + "》已处理完成，共 " + doc.getChunkCount() + " 个片段，已可检索。",
+                            "document", doc.getId());
+                } catch (Exception e) {
+                    log.warn("文档完成通知发送失败(已忽略): {}", e.getMessage());
+                }
+            }
 
         } catch (Exception e) {
             log.error("文档处理失败: id={}", documentId, e);
@@ -595,7 +620,32 @@ public class DocumentService {
     }
 
     private boolean isSupportedType(String fileType) {
-        return List.of("pdf", "txt", "md", "docx", "xlsx", "doc", "xls", "csv", "html", "xml").contains(fileType);
+        return List.of("pdf", "txt", "md", "docx", "xlsx", "doc", "xls", "csv", "html", "xml",
+                "png", "jpg", "jpeg", "gif", "bmp", "webp",
+                "mp3", "wav", "m4a", "flac", "aac", "ogg",
+                "mp4", "mov", "avi", "mkv", "webm", "flv").contains(fileType);
+    }
+
+    /** 多模态扩展名集合（与 isSupportedType 同源，注意 getFileType 只返回无点扩展名） */
+    private static final java.util.List<String> MULTIMODAL_TYPES = List.of(
+            "png", "jpg", "jpeg", "gif", "bmp", "webp",
+            "mp3", "wav", "m4a", "flac", "aac", "ogg",
+            "mp4", "mov", "avi", "mkv", "webm", "flv");
+    private static final java.util.List<String> IMAGE_TYPES = List.of("png", "jpg", "jpeg", "gif", "bmp", "webp");
+
+    /** 是否为多模态文件（需走 MultimodalExtractor）。fileType 仅为扩展名（无点）。 */
+    private boolean isMultimodal(String fileType) {
+        if (fileType == null) return false;
+        String f = fileType.toLowerCase();
+        return MULTIMODAL_TYPES.contains(f) || List.of("image", "audio", "video").contains(f);
+    }
+
+    /** 多模态解析来源标记：图片=vision，音视频=asr */
+    private String parseSourceOf(String fileType) {
+        if (fileType == null) return "asr";
+        String f = fileType.toLowerCase();
+        if (IMAGE_TYPES.contains(f) || "image".equals(f)) return "vision";
+        return "asr";
     }
 
     /**

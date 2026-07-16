@@ -123,7 +123,7 @@ public class RAGService {
 
     public RAGContext preparePrompt(Long conversationId, String question, Long knowledgeBaseId) {
         String questionVector = embeddingService.embed(question);
-        return preparePrompt(conversationId, question, knowledgeBaseId, questionVector);
+        return preparePrompt(conversationId, question, knowledgeBaseId, questionVector, "");
     }
 
     /**
@@ -134,10 +134,20 @@ public class RAGService {
      * @param conversationId 会话 ID（用于获取历史对话）
      * @param question       用户问题（原始文本，用于关键词检索 + 拼入 Prompt）
      * @param questionVector 已计算好的问题向量字符串（来自查询改写后的检索查询）
+     * @param memoryContext  用户长期记忆块（由 MemoryService 生成，可空）
      * @return Prompt 对象和检索到的引用
      */
     public RAGContext preparePrompt(Long conversationId, String question,
                                      Long knowledgeBaseId, String questionVector) {
+        return preparePrompt(conversationId, question, knowledgeBaseId, questionVector, "");
+    }
+
+    /**
+     * 带长期记忆注入的 Prompt 构建
+     */
+    public RAGContext preparePrompt(Long conversationId, String question,
+                                     Long knowledgeBaseId, String questionVector,
+                                     String memoryContext) {
         // 选中的知识库若是父节点，检索范围扩展到其全部子孙库（子树检索）
         List<Long> kbIds = (knowledgeBaseId != null)
                 ? knowledgeBaseService.getDescendantIds(knowledgeBaseId) : null;
@@ -166,7 +176,8 @@ public class RAGService {
         // 4. 组装完整用户消息：参考资料 + 历史对话 + 用户问题
         String userContent = contextBuilder.toString() + "\n" + history + "\n" + "【用户问题】\n" + question;
 
-        return new RAGContext(buildSystemPrompt(knowledgeBaseId), userContent, references);
+        return new RAGContext(buildSystemPrompt(knowledgeBaseId) + (memoryContext == null ? "" : memoryContext),
+                userContent, references);
     }
 
     /**

@@ -38,6 +38,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/memories',
+    name: 'Memories',
+    component: () => import('@/views/MemoryView.vue'),
+    meta: { requiresAuth: true, title: '记忆中心' }
+  },
+  {
     path: '/quiz',
     name: 'Quiz',
     component: () => import('@/views/QuizView.vue'),
@@ -140,6 +146,12 @@ const routes: RouteRecordRaw[] = [
         name: 'AdminConversationConfig',
         component: () => import('@/views/AdminChatConfigView.vue'),
         meta: { requiresAuth: true, requiresAdmin: true, title: '对话配置' }
+      },
+      {
+        path: 'evaluation',
+        name: 'AdminEvaluation',
+        component: () => import('@/views/admin/AdminEvaluationView.vue'),
+        meta: { requiresAuth: true, requiresAdmin: true, title: '效果评估' }
       }
     ]
   },

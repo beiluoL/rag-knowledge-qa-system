@@ -6,6 +6,7 @@
         <p class="page-subtitle">管理你的账号资料与安全设置</p>
       </div>
       <el-button :icon="ArrowLeft" @click="router.push('/chat')">返回对话</el-button>
+      <el-button :icon="BrainCircuit" type="primary" @click="router.push('/memories')">记忆管理</el-button>
     </div>
 
     <el-card class="profile-card">
@@ -78,7 +79,7 @@ import { reactive, ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft, User, Camera } from 'lucide-vue-next'
+import { ArrowLeft, User, Camera, BrainCircuit } from 'lucide-vue-next'
 import { getUserInfo, changePassword, updateProfile, uploadAvatar, resolveFileUrl } from '@/api/user'
 
 const router = useRouter()

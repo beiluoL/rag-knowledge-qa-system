@@ -57,6 +57,14 @@ public class Document {
     @Column(length = 100)
     private String category;
 
+    /** 多模态文档原始媒体 URL（图片/音视频），用于引用回显 */
+    @Column(name = "media_url", length = 1000)
+    private String mediaUrl;
+
+    /** 解析来源标记：vision / ocr / asr */
+    @Column(name = "parse_source", length = 20)
+    private String parseSource;
+
     @Column(name = "uploaded_by")
     private Long uploadedBy;
 

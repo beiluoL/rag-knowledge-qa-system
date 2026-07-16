@@ -31,6 +31,9 @@
         <el-menu-item index="/admin/conversation-config">
           <el-icon><MessageSquare /></el-icon><span>对话配置</span>
         </el-menu-item>
+        <el-menu-item index="/admin/evaluation">
+          <el-icon><BarChart3 /></el-icon><span>效果评估</span>
+        </el-menu-item>
         <el-divider />
         <el-menu-item index="/chat">
           <el-icon><MessageCircle /></el-icon><span>返回对话</span>
@@ -55,6 +58,7 @@
           <span class="crumb-title">{{ currentTitle }}</span>
         </div>
         <div class="topbar-right">
+          <NotificationBell />
           <el-input
             v-model="globalSearch"
             placeholder="全局搜索文档..."
@@ -93,7 +97,8 @@ import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { resolveFileUrl } from '@/api/user'
-import { BookOpen, FileText, Library, User, LineChart, MessageCircle, BookOpenCheck, Menu, ArrowDown, MessageSquare, Search } from 'lucide-vue-next'
+import { BookOpen, FileText, Library, User, LineChart, MessageCircle, BookOpenCheck, Menu, ArrowDown, MessageSquare, Search, BarChart3 } from 'lucide-vue-next'
+import NotificationBell from '@/components/NotificationBell.vue'
 
 const route = useRoute()
 const router = useRouter()

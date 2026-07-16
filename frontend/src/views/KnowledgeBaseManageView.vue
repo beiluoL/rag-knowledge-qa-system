@@ -167,7 +167,7 @@
         <el-icon class="el-icon--upload"><Upload /></el-icon>
         <div class="el-upload__text">拖入文件或 <em>点击选择</em></div>
         <template #tip>
-          <div class="el-upload__tip">支持 pdf / txt / md / docx / xlsx</div>
+          <div class="el-upload__tip">文本(pdf/txt/md/docx/xlsx) · 图片(png/jpg，OCR识别) · 音频/视频(mp3/mp4，转写)</div>
         </template>
       </el-upload>
       <template #footer>

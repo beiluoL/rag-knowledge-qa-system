@@ -60,6 +60,10 @@ public class SecurityConfig {
                 .requestMatchers("/api/ai-mode/**").authenticated()
                 // 用户接口 - 需要登录
                 .requestMatchers("/api/user/**").authenticated()
+                // 对话记忆 - 需要登录（仅本人）
+                .requestMatchers("/api/memories/**").authenticated()
+                // 通知中心 - 需要登录（仅本人；/api/admin/notifications 走下方 admin 规则）
+                .requestMatchers("/api/notifications/**").authenticated()
                 // 其余请求需要认证
                 .anyRequest().authenticated()
             )
