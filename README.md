@@ -65,18 +65,55 @@
 
 ## 页面预览
 
-以下为核心页面截图（1440×900，实际运行界面）：
+以下为核心页面实机截图（1440×900，真实登录态与运行数据）。
 
-| 页面 | 预览 |
-|------|------|
-| **登录页** — 用户登录 / 注册入口 | <img src="docs/screenshots/01-login.png" width="440" alt="登录页"> |
-| **AI 智能问答** — RAG 知识库对话，支持引用溯源与推理过程可视化 | <img src="docs/screenshots/02-chat.png" width="440" alt="AI 智能问答"> |
-| **学习中心** — 闪卡 / 代码练习 / 学习路径多模式学习入口 | <img src="docs/screenshots/03-learn.png" width="440" alt="学习中心"> |
-| **学习路径** — 个性化学习路线与节点进度管理 | <img src="docs/screenshots/04-learn-paths.png" width="440" alt="学习路径"> |
-| **记忆管理** — 跨会话长期记忆查看 / 编辑 / 删除 | <img src="docs/screenshots/05-memories.png" width="440" alt="记忆管理"> |
-| **系统概览** — 管理后台数据看板 | <img src="docs/screenshots/06-admin-dashboard.png" width="440" alt="系统概览"> |
-| **文档管理** — 文档上传、解析状态与分块管理 | <img src="docs/screenshots/07-admin-knowledge.png" width="440" alt="文档管理"> |
-| **效果评估** — 满意度分布 / 检索命中率 / 被引文档 Top10 报表 | <img src="docs/screenshots/08-admin-evaluation.png" width="440" alt="效果评估"> |
+### 1. 登录页
+
+统一的用户登录入口，支持账号密码登录与一键复制演示账号，配合 JWT 令牌自动续期实现无感保持登录态。
+
+![登录页](docs/screenshots/01-login.png)
+
+### 2. AI 智能问答
+
+系统核心页面：基于 RAG 的知识库对话，左侧会话管理与知识库范围选择，右侧回答附带引用溯源与推理过程可视化，Markdown 渲染 + 代码语法高亮。
+
+![AI 智能问答](docs/screenshots/02-chat.png)
+
+### 3. 学习中心
+
+多模式学习入口，聚合闪卡记忆、代码练习、学习路径三大模式，并展示知识库统计看板，是日常学习的统一工作台。
+
+![学习中心](docs/screenshots/03-learn.png)
+
+### 4. 学习路径
+
+个性化学习路线管理：路径节点可视化编排、逐节点推进并自动记录学习进度，支持按知识库定制专属路线。
+
+![学习路径](docs/screenshots/04-learn-paths.png)
+
+### 5. 记忆管理
+
+对话记忆增强的配套页面：系统在问答中自动抽取的跨会话长期记忆在此集中展示，可查看、编辑重要性、删除，记忆会注入后续 RAG 回答。
+
+![记忆管理](docs/screenshots/05-memories.png)
+
+### 6. 系统概览
+
+管理后台数据看板：用户、文档、会话、问答量等关键指标一览，管理员快速掌握系统运行全貌。
+
+![系统概览](docs/screenshots/06-admin-dashboard.png)
+
+### 7. 文档管理
+
+知识库文档管理：支持多格式（PDF / Word / Excel / Markdown / TXT / 图片）上传，实时展示解析状态与分块情况，文档处理完成后通过消息中心推送通知。
+
+![文档管理](docs/screenshots/07-admin-knowledge.png)
+
+### 8. 效果评估
+
+RAG 质量评估报表：基于 ECharts 展示满意度分布饼图、检索命中率、被引文档 Top10 柱状图，并列出「检索不到的问题」帮助定位知识缺口。
+
+![效果评估](docs/screenshots/08-admin-evaluation.png)
 
 ## 系统架构
 
