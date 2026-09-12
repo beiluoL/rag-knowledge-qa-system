@@ -63,6 +63,21 @@
 - 响应式布局
 - 敏感配置分离保护（API Key 不泄露）
 
+## 页面预览
+
+以下为核心页面截图（1440×900，实际运行界面）：
+
+| 页面 | 预览 |
+|------|------|
+| **登录页** — 用户登录 / 注册入口 | <img src="docs/screenshots/01-login.png" width="440" alt="登录页"> |
+| **AI 智能问答** — RAG 知识库对话，支持引用溯源与推理过程可视化 | <img src="docs/screenshots/02-chat.png" width="440" alt="AI 智能问答"> |
+| **学习中心** — 闪卡 / 代码练习 / 学习路径多模式学习入口 | <img src="docs/screenshots/03-learn.png" width="440" alt="学习中心"> |
+| **学习路径** — 个性化学习路线与节点进度管理 | <img src="docs/screenshots/04-learn-paths.png" width="440" alt="学习路径"> |
+| **记忆管理** — 跨会话长期记忆查看 / 编辑 / 删除 | <img src="docs/screenshots/05-memories.png" width="440" alt="记忆管理"> |
+| **系统概览** — 管理后台数据看板 | <img src="docs/screenshots/06-admin-dashboard.png" width="440" alt="系统概览"> |
+| **文档管理** — 文档上传、解析状态与分块管理 | <img src="docs/screenshots/07-admin-knowledge.png" width="440" alt="文档管理"> |
+| **效果评估** — 满意度分布 / 检索命中率 / 被引文档 Top10 报表 | <img src="docs/screenshots/08-admin-evaluation.png" width="440" alt="效果评估"> |
+
 ## 系统架构
 
 ```
