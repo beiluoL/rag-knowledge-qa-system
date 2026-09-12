@@ -84,6 +84,26 @@ Spring Boot 3 后端 :8080
 
 ## 快速开始
 
+### ⚡ macOS 一键启停（双击运行，推荐本地开发）
+
+项目根目录提供三个双击即可运行的脚本（Finder 中双击 → Terminal 自动执行，无需敲命令）：
+
+| 文件 | 作用 |
+|------|------|
+| `start.command` | 一键启动：依赖检查 → PostgreSQL/Ollama 检测与拉起 → 后端(9090) → 前端(5175) → 状态汇总 |
+| `stop.command`  | 一键关闭：精准停止前后端进程并释放端口；只停本脚本拉起的中间件，外部服务不受影响 |
+| `restart.command` | 一键重启（= 先 stop 后 start） |
+
+特性与说明：
+
+- **自动适配**：自动探测本机 JDK/Maven/Node 路径；后端经 `mvn spring-boot:run` 离线仓库启动（已内置 `env -u SERVER__PORT` 防端口覆盖）；前端以 Vite dev 启动。
+- **中间件联动**：PostgreSQL(5432) 为关键依赖，未运行时经 `brew services` 自动拉起（并校验是 `postgresql@17` 而非被其他版本抢占端口）；Ollama(11434) 未运行时自动 `ollama serve`。
+- **幂等**：重复双击 `start.command` 会自动重启已运行的服务；`stop.command` 对未运行服务友好提示。
+- **命令行用法**：`./start.command [start|restart] [all|backend|frontend|middleware]`、`./stop.command [all|backend|frontend|middleware] [--force] [-c]`。
+- **日志**：`logs/backend.log`、`logs/frontend.log`（`tail -f` 查看）；运行时 PID 存于 `.run/`（均已 gitignore）。
+- 失败不静默：编译失败 / 启动超时 / 中间件失败都会打印原因与日志路径。
+- 若从网络下载脚本后被 macOS 拦截，执行 `xattr -d com.apple.quarantine start.command` 解除隔离。
+
 ### 🐳 Docker 一键部署（推荐）
 
 ```bash

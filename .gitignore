@@ -36,3 +36,7 @@ application-secrets.yml
 
 # Logs
 *.log
+
+# 一键启停脚本运行时产物
+logs/
+.run/
