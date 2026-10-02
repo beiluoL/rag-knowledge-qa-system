@@ -1,6 +1,20 @@
-# RAG 企业级知识库问答系统
+<div align="right">
+  <strong>简体中文</strong> · <a href="README.en.md">English</a>
+</div>
 
-> 企业级产品 | 基于 Spring Boot + Vue 3 的 RAG 知识库问答系统，支持本地离线 + 云端在线双模式
+# RAG 知识库问答系统
+
+**基于 Java 的 RAG 知识库问答应用，串联文档入库、向量检索、流式回答与引用溯源。**
+
+[快速开始](#快速开始) · [页面预览](#页面预览) · [系统架构](#系统架构)
+
+- 文档解析、分块与向量化，支持多格式知识资料。
+- Ollama 本地模型与 DashScope 云端模型切换。
+- JWT 鉴权、角色权限、会话管理与操作日志。
+
+**技术栈 / 主题：** Java · Spring Boot · Spring AI · Vue 3 · PostgreSQL · pgvector
+
+---
 
 ## 项目简介
 
@@ -196,7 +210,9 @@ brew install postgresql@17 pgvector
 brew services start postgresql@17
 
 # 2. 创建数据库
-psql -U $(whoami) -d postgres -c "CREATE USER ragkb WITH PASSWORD 'ragkb123';"
+psql -U $(whoami) -d postgres -c "CREATE USER ragkb;"
+# 交互式设置密码，避免将明文密码写入命令历史
+psql -U $(whoami) -d postgres -c '\password ragkb'
 psql -U $(whoami) -d postgres -c "CREATE DATABASE ragkb OWNER ragkb;"
 psql -U $(whoami) -d ragkb -c "CREATE EXTENSION vector;"
 
@@ -228,7 +244,7 @@ open http://localhost:5173
 ### 默认账号
 | 角色 | 用户名 | 密码 | 权限 |
 |------|--------|------|------|
-| 管理员 | admin | 123456 | 知识库管理 + 问答 |
+| 管理员 | admin | 参见本地初始化配置；首次运行后立即修改 | 知识库管理 + 问答 |
 | 普通用户 | 自行注册 | — | 仅问答 |
 
 ### 模式切换
